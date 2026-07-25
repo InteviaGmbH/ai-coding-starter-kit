@@ -5,6 +5,7 @@ import { PortalShell, type PortalNavItem } from "@/components/portal/portal-shel
 const navItems: PortalNavItem[] = [
   { label: "Dashboard", href: "/internal/dashboard" },
   { label: "Gemeinden", href: "/internal/municipalities" },
+  { label: "Kandidaten", href: "/internal/candidates" },
   { label: "Freischaltungen", href: "/internal/approvals" },
 ]
 
