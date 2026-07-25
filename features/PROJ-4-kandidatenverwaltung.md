@@ -1,8 +1,8 @@
 # PROJ-4: Kandidatenverwaltung
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-07-25
-**Last Updated:** 2026-07-25
+**Last Updated:** 2026-07-25 (QA: 1 Low gefunden, kein Sicherheitsrisiko — production-ready)
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — `candidates`-Tabelle, RLS, Storage
@@ -118,7 +118,50 @@ Keine neuen Tabellen. Nutzt ausschliesslich `candidates` (Stammdaten, `cv_docume
 - Wird ein Dokument mit einem ANDEREN Dateinamen als das vorherige hochgeladen, bleibt die alte Datei im Storage-Bucket liegen (nur `cv_document_path` wird umgestellt, die alte Datei wird nicht gelöscht) — kein Sicherheitsproblem, nur Storage-Hygiene. Analog zu BUG-4 aus PROJ-2 als Low-Priority-Punkt für einen späteren Aufräum-Pass vorgesehen.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-07-25
+**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt)
+**Tester:** QA Engineer (AI)
+
+### Automatisierte Tests
+- `npm test`: 16/16 grün (inkl. 5 neuer Tests für die Kandidaten-Server-Actions)
+- `npm run build`: erfolgreich
+- E2E (`tests/PROJ-4-kandidatenverwaltung.spec.ts`): 2/2 grün (nicht authentifizierter Zugriff auf Liste/Detailseite → Redirect zu `/login`)
+
+### Coverage-Lücke (dokumentiert, kein Bug)
+Eingeloggte CRUD-/Such-/Upload-Flows konnten mangels aktivem `dafinex_admin`-Testkonto nicht per E2E gegen die echte Anwendung getestet werden (gleiche Einschränkung wie PROJ-2/PROJ-3). Abgedeckt durch Vitest (gemockter Supabase-Client) + Code-Review.
+
+### Acceptance Criteria Status
+- [x] Serverseitiger Rollen-Guard bestätigt (E2E)
+- [x] Zod-Validierung serverseitig bestätigt (Vitest: fehlender Nachname wird abgelehnt)
+- [x] `source_type: 'dafinex'` bei intern erfassten Kandidaten bestätigt (Vitest)
+- [x] Lösch-Schutz bei verknüpftem Login-Konto bestätigt (Vitest, gleiche `ON DELETE SET NULL`-Prüfung wie PROJ-3)
+- [ ] Restliche UI-Kriterien (Tabelle, Suche/Filter, leerer Zustand, Dokument-Upload/-Download) nur per Code-Review geprüft — siehe Coverage-Lücke
+
+### Security Audit Results (Red Team)
+- [x] Unauthentifizierter Zugriff → Redirect, keine Daten sichtbar
+- [x] Server Actions prüfen Rolle+Status serverseitig, UUID-Validierung auf allen IDs
+- [x] Signed-URL-Download geprüft: `createSignedUrl` respektiert die Storage-RLS aus PROJ-1 (`is_internal_role()` erlaubt Zugriff auf jeden Kandidaten-Ordner) — kein direkter Bucket-Zugriff ohne Berechtigung möglich
+- [x] Lösch-Logik erneut gegen die tatsächliche FK-Konfiguration geprüft (nicht nur angenommen) — `profiles.candidate_id` ist ebenfalls `ON DELETE SET NULL`, explizite Prüfung vor dem Fix bereits proaktiv eingebaut (nicht erst als Fund)
+- [ ] BUG-1 (Low): Beim Ersetzen eines Dokuments mit anderem Dateinamen bleibt die alte Datei im Storage-Bucket liegen (Speicher-Hygiene, kein Sicherheitsrisiko)
+
+### Bugs Found
+
+#### BUG-1: Alte Dokument-Datei bleibt bei Namensänderung im Storage liegen
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Kandidat X hat Dokument `cv_alt.pdf` hochgeladen (`cv_document_path = X/cv_alt.pdf`)
+  2. Internes Personal lädt `zeugnis_neu.pdf` für denselben Kandidaten hoch
+  3. Erwartet: Nur noch ein aktuelles Dokument pro Kandidat im Storage
+  4. Tatsächlich: `cv_document_path` zeigt korrekt auf die neue Datei, aber `X/cv_alt.pdf` bleibt ungenutzt im Bucket liegen
+- **Priority:** Nice to have (analog zu BUG-4 aus PROJ-2)
+
+### Summary
+- **Acceptance Criteria:** Serverseitige/Validierungs-Kriterien bestätigt; reine Klick-UI-Kriterien nur per Code-Review (Coverage-Lücke dokumentiert, wie bei PROJ-2/3)
+- **Bugs Found:** 1 total (1 Low, kein Sicherheitsrisiko)
+- **Security:** Keine Autorisierungslücke gefunden; Lösch-Falle aus PROJ-3 wurde diesmal bereits beim Bauen berücksichtigt statt erst in QA gefunden
+- **Production Ready:** **YES** — keine offenen Critical/High/Medium-Bugs
+- **Empfehlung:** BUG-1 (Storage-Aufräumen) kann gesammelt mit BUG-4 aus PROJ-2 in einem späteren Aufräum-Pass behoben werden; sobald ein Testkonto verfügbar ist, UI-Flows einmal manuell verifizieren
 
 ## Deployment
 _To be added by /deploy_
