@@ -66,7 +66,7 @@ create table municipalities (
 
 create table candidates (
   id uuid primary key default gen_random_uuid(),
-  profile_id uuid, -- set once the candidate's own account is linked (FK added after profiles exists)
+  profile_id uuid unique, -- set once the candidate's own account is linked (FK added after profiles exists); unique so a candidate can never self-create more than one row
   first_name text not null,
   last_name text not null,
   skills text[] not null default '{}',
@@ -253,15 +253,21 @@ create trigger set_updated_date before update on activity_log for each row execu
 -- ============================================================================
 create function public.handle_new_user() returns trigger
   language plpgsql security definer set search_path = public as $$
+declare
+  requested_role user_role := coalesce((new.raw_user_meta_data ->> 'role')::user_role, 'candidate');
 begin
+  -- Self-registration (public signUp) may only ever create municipality or
+  -- candidate accounts. Internal roles (dafinex_admin, internal_coordinator,
+  -- super_admin) must be granted afterwards by an existing dafinex_admin via
+  -- a normal profiles UPDATE (profiles_update_by_dafinex_admin policy) — never
+  -- accepted directly from client-supplied signup metadata.
+  if requested_role not in ('municipality', 'candidate') then
+    raise exception 'Self-registration only supports the municipality or candidate role';
+  end if;
+
   insert into public.profiles (id, email, full_name, role, account_status)
-  values (
-    new.id,
-    new.email,
-    new.raw_user_meta_data ->> 'full_name',
-    coalesce((new.raw_user_meta_data ->> 'role')::user_role, 'candidate'),
-    'pending'
-  );
+  values (new.id, new.email, new.raw_user_meta_data ->> 'full_name', requested_role, 'pending');
+
   return new;
 end;
 $$;
@@ -269,6 +275,24 @@ $$;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Auto-links a self-registered candidate's profile to the candidates row they
+-- just created for themselves (see candidates_insert_self_or_internal policy).
+-- SECURITY DEFINER so it can update profiles despite profiles having no
+-- self-service UPDATE path for candidate_id (see profiles_update_own_limited).
+create function public.link_candidate_profile() returns trigger
+  language plpgsql security definer set search_path = public as $$
+begin
+  if new.profile_id is not null then
+    update profiles set candidate_id = new.id where id = new.profile_id and candidate_id is null;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger on_candidate_created
+  after insert on candidates
+  for each row execute function public.link_candidate_profile();
 
 -- ============================================================================
 -- Indexes
@@ -314,14 +338,23 @@ alter table activity_log enable row level security;
 
 -- --- profiles ---------------------------------------------------------------
 create policy "profiles_select_own_or_internal" on profiles for select
-  using (id = auth.uid() or public.is_internal_role());
+  using (id = auth.uid() or (public.is_internal_role() and public.is_active()));
 
 create policy "profiles_insert_via_trigger_only" on profiles for insert
   with check (false); -- rows are only ever created by handle_new_user() (security definer)
 
+-- Self-service updates may never change role, account_status, municipality_id
+-- or candidate_id — those are set either by handle_new_user()/link_candidate_profile()
+-- (security definer, bypasses RLS) or by a dafinex_admin via the policy below.
 create policy "profiles_update_own_limited" on profiles for update
   using (id = auth.uid())
-  with check (id = auth.uid() and role = public.current_role() and account_status = public.current_account_status());
+  with check (
+    id = auth.uid()
+    and role = public.current_role()
+    and account_status = public.current_account_status()
+    and municipality_id is not distinct from public.current_municipality_id()
+    and candidate_id is not distinct from public.current_candidate_id()
+  );
 
 create policy "profiles_update_by_dafinex_admin" on profiles for update
   using (public.current_role() in ('super_admin', 'dafinex_admin'));
@@ -331,7 +364,7 @@ create policy "profiles_delete_super_admin_only" on profiles for delete
 
 -- --- municipalities ----------------------------------------------------------
 create policy "municipalities_select" on municipalities for select
-  using (public.is_internal_role() or id = public.current_municipality_id());
+  using (public.is_active() and (public.is_internal_role() or id = public.current_municipality_id()));
 
 create policy "municipalities_insert_internal" on municipalities for insert
   with check (public.is_internal_role());
@@ -346,8 +379,12 @@ create policy "municipalities_delete_internal" on municipalities for delete
 create policy "candidates_select" on candidates for select
   using (public.is_internal_role() or id = public.current_candidate_id());
 
-create policy "candidates_insert_internal" on candidates for insert
-  with check (public.is_internal_role());
+-- A candidate may create exactly one candidates row for themselves during
+-- self-registration (profile_id = their own auth id; the unique constraint on
+-- candidates.profile_id blocks a second attempt). Internal roles can create
+-- candidate records on behalf of anyone (source_type = 'dafinex', no self-link).
+create policy "candidates_insert_self_or_internal" on candidates for insert
+  with check (public.is_internal_role() or profile_id = auth.uid());
 
 create policy "candidates_update" on candidates for update
   using (public.is_internal_role() or id = public.current_candidate_id());
@@ -357,7 +394,7 @@ create policy "candidates_delete_internal" on candidates for delete
 
 -- --- personnel_requests ---------------------------------------------------------------
 create policy "personnel_requests_select" on personnel_requests for select
-  using (public.is_internal_role() or municipality_id = public.current_municipality_id());
+  using (public.is_active() and (public.is_internal_role() or municipality_id = public.current_municipality_id()));
 
 create policy "personnel_requests_insert" on personnel_requests for insert
   with check (
@@ -374,9 +411,12 @@ create policy "personnel_requests_delete_internal" on personnel_requests for del
 -- --- candidate_proposals ---------------------------------------------------------------
 create policy "candidate_proposals_select" on candidate_proposals for select
   using (
-    public.is_internal_role()
-    or candidate_id = public.current_candidate_id()
-    or request_id in (select id from personnel_requests where municipality_id = public.current_municipality_id())
+    public.is_active()
+    and (
+      public.is_internal_role()
+      or candidate_id = public.current_candidate_id()
+      or request_id in (select id from personnel_requests where municipality_id = public.current_municipality_id())
+    )
   );
 
 create policy "candidate_proposals_insert_internal" on candidate_proposals for insert
@@ -391,12 +431,15 @@ create policy "candidate_proposals_delete_internal" on candidate_proposals for d
 -- --- assignments ---------------------------------------------------------------
 create policy "assignments_select" on assignments for select
   using (
-    public.is_internal_role()
-    or proposal_id in (select id from candidate_proposals where candidate_id = public.current_candidate_id())
-    or proposal_id in (
-      select cp.id from candidate_proposals cp
-      join personnel_requests pr on pr.id = cp.request_id
-      where pr.municipality_id = public.current_municipality_id()
+    public.is_active()
+    and (
+      public.is_internal_role()
+      or proposal_id in (select id from candidate_proposals where candidate_id = public.current_candidate_id())
+      or proposal_id in (
+        select cp.id from candidate_proposals cp
+        join personnel_requests pr on pr.id = cp.request_id
+        where pr.municipality_id = public.current_municipality_id()
+      )
     )
   );
 
@@ -405,11 +448,14 @@ create policy "assignments_insert_internal" on assignments for insert
 
 create policy "assignments_update" on assignments for update
   using (
-    public.is_internal_role()
-    or proposal_id in (
-      select cp.id from candidate_proposals cp
-      join personnel_requests pr on pr.id = cp.request_id
-      where pr.municipality_id = public.current_municipality_id()
+    public.is_active()
+    and (
+      public.is_internal_role()
+      or proposal_id in (
+        select cp.id from candidate_proposals cp
+        join personnel_requests pr on pr.id = cp.request_id
+        where pr.municipality_id = public.current_municipality_id()
+      )
     )
   );
 
@@ -419,17 +465,20 @@ create policy "assignments_delete_internal" on assignments for delete
 -- --- contracts ---------------------------------------------------------------
 create policy "contracts_select" on contracts for select
   using (
-    public.is_internal_role()
-    or assignment_id in (
-      select a.id from assignments a
-      join candidate_proposals cp on cp.id = a.proposal_id
-      where cp.candidate_id = public.current_candidate_id()
-    )
-    or assignment_id in (
-      select a.id from assignments a
-      join candidate_proposals cp on cp.id = a.proposal_id
-      join personnel_requests pr on pr.id = cp.request_id
-      where pr.municipality_id = public.current_municipality_id()
+    public.is_active()
+    and (
+      public.is_internal_role()
+      or assignment_id in (
+        select a.id from assignments a
+        join candidate_proposals cp on cp.id = a.proposal_id
+        where cp.candidate_id = public.current_candidate_id()
+      )
+      or assignment_id in (
+        select a.id from assignments a
+        join candidate_proposals cp on cp.id = a.proposal_id
+        join personnel_requests pr on pr.id = cp.request_id
+        where pr.municipality_id = public.current_municipality_id()
+      )
     )
   );
 
@@ -439,17 +488,20 @@ create policy "contracts_insert_internal" on contracts for insert
 -- Signed document upload: internal roles, or the municipality/candidate tied to the assignment.
 create policy "contracts_update" on contracts for update
   using (
-    public.is_internal_role()
-    or assignment_id in (
-      select a.id from assignments a
-      join candidate_proposals cp on cp.id = a.proposal_id
-      where cp.candidate_id = public.current_candidate_id()
-    )
-    or assignment_id in (
-      select a.id from assignments a
-      join candidate_proposals cp on cp.id = a.proposal_id
-      join personnel_requests pr on pr.id = cp.request_id
-      where pr.municipality_id = public.current_municipality_id()
+    public.is_active()
+    and (
+      public.is_internal_role()
+      or assignment_id in (
+        select a.id from assignments a
+        join candidate_proposals cp on cp.id = a.proposal_id
+        where cp.candidate_id = public.current_candidate_id()
+      )
+      or assignment_id in (
+        select a.id from assignments a
+        join candidate_proposals cp on cp.id = a.proposal_id
+        join personnel_requests pr on pr.id = cp.request_id
+        where pr.municipality_id = public.current_municipality_id()
+      )
     )
   );
 
@@ -502,6 +554,7 @@ create policy "candidate_documents_insert" on storage.objects for insert
 create policy "contracts_documents_select" on storage.objects for select
   using (
     bucket_id = 'contracts'
+    and public.is_active()
     and (
       public.is_internal_role()
       or (storage.foldername(name))[1] in (
@@ -521,6 +574,7 @@ create policy "contracts_documents_select" on storage.objects for select
 create policy "contracts_documents_insert" on storage.objects for insert
   with check (
     bucket_id = 'contracts'
+    and public.is_active()
     and (
       public.is_internal_role()
       or (storage.foldername(name))[1] in (
