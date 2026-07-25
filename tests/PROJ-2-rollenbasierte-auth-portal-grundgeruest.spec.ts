@@ -37,9 +37,26 @@ test.describe("PROJ-2: Rollenbasierte Auth & Portal-Grundgerüst", () => {
       page.getByText("Dein Konto wird von Dafinex geprüft und freigeschaltet.")
     ).toBeVisible({ timeout: 15000 })
 
-    // Log in immediately — account is still pending, so it must land on /pending,
-    // not on the candidate portal (covers the account_status-based redirect guard).
+    // signUp() already established a session (Confirm Email is off), so we're
+    // technically logged in right now even though we're still showing the
+    // inline success message on /register. Navigating anywhere in the (auth)
+    // group should bounce an already-authenticated pending user to /pending
+    // rather than showing them the login form again.
     await page.goto("/login")
+    await expect(page).toHaveURL(/\/pending$/, { timeout: 15000 })
+    await expect(page.getByText("Konto wird geprüft")).toBeVisible()
+
+    // Now log out and log back in fresh — must land on /pending again, not
+    // on the candidate portal (covers the account_status-based redirect
+    // guard for a genuine, separate login rather than a lingering session).
+    await page.getByRole("button", { name: "Abmelden" }).click()
+    await expect(page).toHaveURL(/\/login$/, { timeout: 15000 })
+    // LogoutButton does a hard `window.location.href` redirect (full page
+    // reload, per the project's Supabase auth convention), which is slower
+    // to hydrate than client-side navigation — wait for it to settle so the
+    // form's submit handler is actually attached before we click it.
+    await page.waitForLoadState("networkidle")
+
     await page.getByLabel("E-Mail").fill(email)
     await page.getByLabel("Passwort").fill(TEST_PASSWORD)
     await page.getByRole("button", { name: "Anmelden" }).click()
@@ -97,6 +114,15 @@ test.describe("PROJ-2: Rollenbasierte Auth & Portal-Grundgerüst", () => {
     await expect(
       page.getByText("Dein Konto wird von Dafinex geprüft und freigeschaltet.")
     ).toBeVisible({ timeout: 15000 })
+
+    // signUp() already logged us in as the (pending) account from the first
+    // registration — log out first, otherwise the (auth) group's guard would
+    // just bounce the second /register visit to /pending before the form
+    // ever loads, regardless of the duplicate-email check.
+    await page.goto("/")
+    await expect(page).toHaveURL(/\/pending$/, { timeout: 15000 })
+    await page.getByRole("button", { name: "Abmelden" }).click()
+    await expect(page).toHaveURL(/\/login$/, { timeout: 15000 })
 
     await register()
     await expect(page.getByText("Diese E-Mail-Adresse ist bereits registriert.")).toBeVisible({

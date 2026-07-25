@@ -118,21 +118,26 @@ export function CandidateRegisterForm() {
       .map((s) => s.trim())
       .filter(Boolean)
 
-    const { data: candidate, error: candidateError } = await supabase
-      .from("candidates")
-      .insert({
-        profile_id: signUpData.user.id,
-        first_name: values.firstName,
-        last_name: values.lastName,
-        skills: skillsArray,
-        region: values.region,
-        availability: values.availability,
-        source_type: "dafinex",
-      })
-      .select("id")
-      .single()
+    // Generate the id client-side and skip .select() (no RETURNING): with
+    // RETURNING, Postgres re-checks the row against candidates_select
+    // ("is_internal_role() or id = current_candidate_id()"), and
+    // current_candidate_id() is still NULL at this point — the
+    // link_candidate_profile trigger that sets it hasn't run yet from the
+    // perspective of that check — so the insert was spuriously rejected as
+    // an RLS violation even though the INSERT policy itself was satisfied.
+    const candidateId = crypto.randomUUID()
+    const { error: candidateError } = await supabase.from("candidates").insert({
+      id: candidateId,
+      profile_id: signUpData.user.id,
+      first_name: values.firstName,
+      last_name: values.lastName,
+      skills: skillsArray,
+      region: values.region,
+      availability: values.availability,
+      source_type: "dafinex",
+    })
 
-    if (candidateError || !candidate) {
+    if (candidateError) {
       setError(
         "Konto wurde erstellt, aber dein Profil konnte nicht gespeichert werden. Bitte kontaktiere Dafinex."
       )
@@ -141,7 +146,7 @@ export function CandidateRegisterForm() {
     }
 
     if (cvFile) {
-      const path = `${candidate.id}/${cvFile.name}`
+      const path = `${candidateId}/${cvFile.name}`
       const { error: uploadError } = await supabase.storage
         .from("candidate-documents")
         .upload(path, cvFile)
@@ -152,7 +157,7 @@ export function CandidateRegisterForm() {
           "Profil wurde gespeichert, das Dokument konnte aber nicht hochgeladen werden. Du kannst es später erneut versuchen."
         )
       } else {
-        await supabase.from("candidates").update({ cv_document_path: path }).eq("id", candidate.id)
+        await supabase.from("candidates").update({ cv_document_path: path }).eq("id", candidateId)
       }
     }
 
