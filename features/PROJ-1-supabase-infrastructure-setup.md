@@ -1,6 +1,6 @@
 # PROJ-1: Supabase Infrastructure Setup
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-07-25
 **Last Updated:** 2026-07-25
 
@@ -76,12 +76,65 @@
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Supabase Auth (E-Mail/Passwort) für Login und Selbst-Registrierung | Nutzt fertige, geprüfte Auth-Infrastruktur statt Eigenbau | 2026-07-25 |
+| Separates Benutzerprofil zusätzlich zum Supabase-Auth-Konto | Rolle, Konto-Status und Verknüpfung zu Gemeinde/Kandidat sind im Auth-Konto selbst nicht abbildbar | 2026-07-25 |
+| Row Level Security (RLS) als zentraler Zugriffsschutz direkt in der Datenbank | Zugriffsregeln greifen unabhängig vom Zugriffsweg — sicherer als reine Prüfung im Frontend | 2026-07-25 |
+| EU-Hosting (Frankfurt) statt Standard-US-Region | Einzige praktikable Möglichkeit bei Supabase für DSG/nDSG-konforme Datenhaltung | 2026-07-25 |
+| Private Storage-Bereiche mit zeitlich begrenzten Zugriffslinks statt öffentlicher Dateiablage | Verträge und CVs enthalten sensible Personendaten | 2026-07-25 |
+| Freischaltung/Ablehnung löst zusätzlich zur In-App-Benachrichtigung eine E-Mail aus (via Resend) | Nutzer merkt sonst evtl. nicht, dass sein Konto freigeschaltet wurde, da er sich ohne Freischaltung nicht sinnvoll einloggen kann | 2026-07-25 |
+| Alle Tabellen erhalten einheitliche Standard-Felder: id, created_date, updated_date, created_by_id, created_by, optional is_sample | Konsistente Nachvollziehbarkeit über alle Entitäten hinweg; is_sample erlaubt spätere Kennzeichnung von Demo-/Testdaten getrennt von echten Produktionsdaten | 2026-07-25 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Component Structure
+PROJ-1 hat keine eigene Benutzeroberfläche — es ist reine Infrastruktur (Datenbank, Zugriffsregeln, Dateispeicher, Authentifizierung), auf der alle folgenden Features (ab PROJ-2) aufbauen. Es gibt daher keinen UI-Baum für dieses Feature.
+
+### Data Model (in einfachen Worten)
+
+**Standard-Felder (auf jeder Entität):** Jede Tabelle erhält automatisch dieselben Basisfelder — eindeutige ID, Erstellungsdatum, letztes Änderungsdatum, wer den Datensatz erstellt hat (Referenz + Anzeigename), sowie optional eine Markierung „ist Beispieldatensatz" (für Demo-/Testdaten, die sich von echten Produktionsdaten unterscheiden lassen, z.B. für den Pilot-Showcase oder QA). Im Folgenden sind nur die fachlichen Felder je Entität aufgeführt.
+
+**Benutzerprofil** (erweitert den Supabase-Auth-Account)
+- Rolle: super_admin, dafinex_admin, internal_coordinator, municipality, candidate, partner_company (Enum, `partner_company` bleibt ungenutzt in Phase 1)
+- Konto-Status: ausstehend, aktiv, abgelehnt
+- Verknüpfung zu Gemeinde (falls Rolle municipality) oder Kandidat (falls Rolle candidate)
+
+**Gemeinden** — Name, Adresse, Ansprechpartner-Kontaktdaten
+
+**Kandidaten** — Name, Fähigkeiten, Region, Verfügbarkeit, Quelle (dafinex/partner — nur „dafinex" aktiv genutzt), Verweis auf hochgeladene Dokumente
+
+**Personalanfragen** — Gemeinde, gesuchte Qualifikation/Rolle, Region, Zeitraum, Status (erstellt/geprüft), erstellt von
+
+**Kandidatenvorschläge** — Verweis auf Anfrage + Kandidat, vorgeschlagen von, Status (vorgeschlagen/freigegeben/abgelehnt)
+
+**Einsätze** — Verweis auf Vorschlag, Statusverlauf (proposed → accepted → active → completed), Start-/Enddatum
+
+**Verträge** — Verweis auf Einsatz, generiertes Dokument, hochgeladene unterschriebene Version, Status
+
+**Benachrichtigungen** — Empfänger, Typ, Nachricht, gelesen/ungelesen
+
+**Aktivitätenprotokoll** — Wer hat was wann getan (Basis-Ereignisliste)
+
+**Gespeichert in:** Supabase (PostgreSQL-Datenbank), EU-Region (Frankfurt) für DSG/nDSG-Konformität
+
+**Dateispeicher (Supabase Storage):** zwei private Bereiche — einer für Kandidaten-Dokumente (CV, Zertifikate), einer für unterschriebene Vertragsdokumente. Beide nicht öffentlich zugänglich, nur über Berechtigungsprüfung.
+
+### Tech Decisions (Begründung)
+- **Supabase Auth (E-Mail/Passwort)** für Login und Selbst-Registrierung — nutzt fertige, geprüfte Infrastruktur statt Eigenbau.
+- **Separates Benutzerprofil** zusätzlich zum Supabase-Auth-Konto — weil Rolle, Konto-Status und Verknüpfung zu Gemeinde/Kandidat dort nicht nativ abgebildet werden können.
+- **Row Level Security (RLS)** als zentraler Zugriffsschutz direkt in der Datenbank — jede Rolle sieht nur die Daten, die ihr laut Spec zustehen. Dieser Schutz greift unabhängig davon, über welchen Weg auf die Daten zugegriffen wird — sicherer als reine Prüfung im Frontend.
+- **EU-Hosting (Frankfurt)** statt Standard-US-Region — für DSG/nDSG-konforme Datenhaltung.
+- **Private Storage-Bereiche mit zeitlich begrenzten Zugriffslinks** statt öffentlicher Dateiablage — Verträge und CVs enthalten sensible Personendaten.
+- **E-Mail-Benachrichtigung bei Freischaltung/Ablehnung** zusätzlich zur In-App-Benachrichtigung (via Resend) — Nutzer wird aktiv informiert, statt erst beim nächsten Login davon zu erfahren.
+- **Einheitliche Standard-Felder auf jeder Tabelle** (ID, Erstellungs-/Änderungsdatum, Ersteller-Referenz, optionale Beispieldaten-Markierung) — konsistente Nachvollziehbarkeit und Basis für Aktivitätenprotokoll und spätere Demo-/QA-Daten.
+
+### Dependencies (zu installierende Pakete)
+- `@supabase/supabase-js` — Datenbank- und Auth-Client
+- `@supabase/ssr` — Session-Handling für Next.js App Router (Server- und Client-Komponenten)
+- `zod` — Validierung von Formulareingaben
+- `resend` — Transaktionale E-Mails (Konto-Freischaltung/Ablehnung)
 
 ## QA Test Results
 _To be added by /qa_
