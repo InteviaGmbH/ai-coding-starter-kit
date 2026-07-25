@@ -16,7 +16,7 @@
 | ID | Feature | Status | Spec | Created |
 |----|---------|--------|------|---------|
 | PROJ-1 | Supabase Infrastructure Setup | Approved | [PROJ-1](PROJ-1-supabase-infrastructure-setup.md) | 2026-07-25 |
-| PROJ-2 | Rollenbasierte Auth & Portal-Grundgerüst | Roadmap | — | 2026-07-25 |
+| PROJ-2 | Rollenbasierte Auth & Portal-Grundgerüst | In Progress | [PROJ-2](PROJ-2-rollenbasierte-auth-portal-grundgeruest.md) | 2026-07-25 |
 | PROJ-3 | Gemeindenverwaltung | Roadmap | — | 2026-07-25 |
 | PROJ-4 | Kandidatenverwaltung | Roadmap | — | 2026-07-25 |
 | PROJ-5 | Personalanfrage-Workflow (erstellen & prüfen) | Roadmap | — | 2026-07-25 |
