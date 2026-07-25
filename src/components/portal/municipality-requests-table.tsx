@@ -112,7 +112,12 @@ export function MunicipalityRequestsTable({ requests }: { requests: Municipality
                       endDate: r.endDate ?? "",
                     }}
                     trigger={
-                      <Button size="sm" variant="outline" disabled={!editable}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!editable}
+                        title={editable ? undefined : "Bereits geprüfte Anfragen können nicht mehr bearbeitet werden"}
+                      >
                         Bearbeiten
                       </Button>
                     }
@@ -121,6 +126,7 @@ export function MunicipalityRequestsTable({ requests }: { requests: Municipality
                     size="sm"
                     variant="destructive"
                     disabled={!editable}
+                    title={editable ? undefined : "Bereits geprüfte Anfragen können nicht mehr zurückgezogen werden"}
                     onClick={() => setPendingWithdraw(r)}
                   >
                     Zurückziehen

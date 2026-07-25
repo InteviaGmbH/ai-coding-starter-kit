@@ -1,8 +1,8 @@
 # PROJ-5: Personalanfrage-Workflow (erstellen & prüfen)
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-07-25
-**Last Updated:** 2026-07-25
+**Last Updated:** 2026-07-25 (QA: 1 Low gefunden und behoben — production-ready)
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — `personnel_requests`-Tabelle, RLS
@@ -121,7 +121,52 @@ Keine neuen Tabellen. Nutzt `personnel_requests` (Kern), `municipalities` (Anzei
 - Die ursprüngliche PROJ-1-Migration erlaubte UPDATE/DELETE auf `personnel_requests` ausschliesslich internen Rollen. Ohne Korrektur hätten Gemeinde-Server-Actions RLS-seitig **still** null Zeilen verändert (kein Fehler, einfach kein Effekt) — genau der Grund, warum jetzt zusätzlich explizit die Anzahl betroffener Zeilen geprüft wird, statt nur auf `error`.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-07-25
+**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt)
+**Tester:** QA Engineer (AI)
+
+### Automatisierte Tests
+- `npm test`: 25/25 grün (9 neue Tests für die Anfrage-Server-Actions)
+- `npm run build`: erfolgreich
+- E2E (`tests/PROJ-5-personalanfrage-workflow.spec.ts`): 4/4 grün (nicht authentifizierter Zugriff auf beide Listen und beide Detailseiten → Redirect zu `/login`)
+
+### Coverage-Lücke (dokumentiert, kein Bug)
+Eingeloggte Flows (Anfrage erstellen/bearbeiten/zurückziehen als Gemeinde, als geprüft markieren als intern) konnten mangels aktivem `municipality`- bzw. `dafinex_admin`-Testkonto nicht per E2E gegen die echte Anwendung getestet werden (gleiche Einschränkung wie PROJ-2/3/4). Abgedeckt durch Vitest (gemockter Supabase-Client) + Code-Review.
+
+### Acceptance Criteria Status
+- [x] Serverseitiger Rollen-Guard bestätigt (E2E, alle vier Routen)
+- [x] `municipality_id` stammt beim Erstellen nachweislich aus dem eigenen Profil, nicht aus Client-Input (Vitest)
+- [x] Enddatum-vor-Startdatum-Validierung bestätigt (Vitest)
+- [x] Bearbeitungs-/Zurückzieh-Sperre nach „geprüft" bestätigt (Vitest: Server Action lehnt ab; Code-Review: Buttons zusätzlich clientseitig deaktiviert mit Tooltip-Erklärung — während dieses QA-Durchgangs ergänzt, siehe Bugs)
+- [x] RLS-Blockade wird korrekt als Fehler erkannt, nicht als stiller Erfolg (Vitest: 0 betroffene Zeilen → `success: false`)
+- [x] Idempotenz von „als geprüft markieren" bestätigt (Vitest: kein doppelter Aktivitäts-/Benachrichtigungs-Eintrag)
+
+### Security Audit Results (Red Team)
+- [x] Unauthentifizierter Zugriff → Redirect, keine Daten sichtbar
+- [x] `municipality_id` kann nicht per direktem API-Aufruf auf eine fremde Gemeinde gesetzt werden — sowohl Server-Action-Logik als auch RLS-`WITH CHECK` auf `personnel_requests_update_own_when_created` geprüft (verhindert das Umgehen der Server Action)
+- [x] Neue RLS-Policies (Gemeinde-Update/-Delete) korrekt auf `status = 'created'` beschränkt — geprüfte Anfragen sind für die Gemeinde unveränderlich, auch bei direktem API-Zugriff unter Umgehung der UI
+- [x] `markRequestReviewed`/Aktivitätenprotokoll/Benachrichtigung nur für interne Rollen möglich (RLS + Action-Check)
+- [ ] BUG-1 (Low): Tabellen-Ansicht der Gemeinde erklärte deaktivierte Buttons nicht (nur die Detailseite tat das) — noch während dieses QA-Durchgangs behoben
+
+### Bugs Found
+
+#### BUG-1: Fehlender Hinweis bei deaktivierten Buttons in der Anfragen-Tabelle — ✅ FIXED (2026-07-25, während QA gefunden und sofort behoben)
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Gemeinde-Nutzer öffnet `/municipality/requests`, eine Anfrage hat Status „Geprüft"
+  2. „Bearbeiten"/„Zurückziehen"-Buttons sind korrekt deaktiviert
+  3. Erwartet laut AC: „...und ein Hinweis erklärt warum"
+  4. Tatsächlich (vor Fix): Kein Hinweis in der Tabelle, nur auf der separaten Detailseite
+- **Fix:** `title`-Attribut mit Erklärungstext auf beiden deaktivierten Buttons ergänzt (native Tooltip)
+- **Priority:** Fixed
+
+### Summary
+- **Acceptance Criteria:** Serverseitige/Validierungs-/Sicherheits-Kriterien vollständig bestätigt; reine Klick-UI-Kriterien nur per Code-Review (Coverage-Lücke dokumentiert)
+- **Bugs Found:** 1 total (1 Low, vor Abschluss behoben — 0 offen)
+- **Security:** Keine Autorisierungslücke gefunden; die in dieser Spec neu eingeführten RLS-Policies wurden gezielt auf Umgehungsversuche geprüft (Client kann `municipality_id`/Status nicht über die Server Action hinaus manipulieren)
+- **Production Ready:** **YES** — keine offenen Critical/High/Medium-Bugs
+- **Empfehlung:** Sobald Test-Accounts für `municipality` und `dafinex_admin` verfügbar sind, den vollständigen Anfrage-Lebenszyklus (erstellen → bearbeiten → geprüft → gesperrt) einmal end-to-end manuell verifizieren
 
 ## Deployment
 _To be added by /deploy_

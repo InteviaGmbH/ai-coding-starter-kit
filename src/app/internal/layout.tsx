@@ -6,6 +6,7 @@ const navItems: PortalNavItem[] = [
   { label: "Dashboard", href: "/internal/dashboard" },
   { label: "Gemeinden", href: "/internal/municipalities" },
   { label: "Kandidaten", href: "/internal/candidates" },
+  { label: "Anfragen", href: "/internal/requests" },
   { label: "Freischaltungen", href: "/internal/approvals" },
 ]
 
