@@ -15,7 +15,26 @@
 
 | ID | Feature | Status | Spec | Created |
 |----|---------|--------|------|---------|
+| PROJ-1 | Supabase Infrastructure Setup | Roadmap | — | 2026-07-25 |
+| PROJ-2 | Rollenbasierte Auth & Portal-Grundgerüst | Roadmap | — | 2026-07-25 |
+| PROJ-3 | Gemeindenverwaltung | Roadmap | — | 2026-07-25 |
+| PROJ-4 | Kandidatenverwaltung | Roadmap | — | 2026-07-25 |
+| PROJ-5 | Personalanfrage-Workflow (erstellen & prüfen) | Roadmap | — | 2026-07-25 |
+| PROJ-6 | Kandidatensuche mit Matching-Filter | Roadmap | — | 2026-07-25 |
+| PROJ-7 | Kandidatenvorschlag & interne Freigabe | Roadmap | — | 2026-07-25 |
+| PROJ-8 | Gemeinde-Interview & Annahme | Roadmap | — | 2026-07-25 |
+| PROJ-9 | Einsatzverwaltung mit Statusverlauf | Roadmap | — | 2026-07-25 |
+| PROJ-10 | Einfache Vertragsgenerierung | Roadmap | — | 2026-07-25 |
+| PROJ-11 | Kern-Benachrichtigungen | Roadmap | — | 2026-07-25 |
+| PROJ-12 | Aktivitätenprotokoll (Basis) | Roadmap | — | 2026-07-25 |
+| PROJ-13 | Partnerportal + Partnerfirmen-Kandidatenvorschläge | Roadmap | — | 2026-07-25 |
+| PROJ-14 | Volle Matching-Score-Formel mit Gewichtungen | Roadmap | — | 2026-07-25 |
+| PROJ-15 | Digitale Multi-Party-Signaturen | Roadmap | — | 2026-07-25 |
+| PROJ-16 | Vollständiges Dokumentenmanagement | Roadmap | — | 2026-07-25 |
+| PROJ-17 | Vollständiges Nachrichtensystem | Roadmap | — | 2026-07-25 |
+| PROJ-18 | Alle Benachrichtigungstrigger + Erinnerungslogik | Roadmap | — | 2026-07-25 |
+| PROJ-19 | Vollständige Dashboards für alle Rollen | Roadmap | — | 2026-07-25 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-1
+## Next Available ID: PROJ-20

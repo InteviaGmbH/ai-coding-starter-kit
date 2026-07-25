@@ -1,29 +1,63 @@
 # Product Requirements Document
 
 ## Vision
-_Describe what you are building and why._
+Dafinex ist eine B2B-Vermittlungs- und Einsatzplattform, die temporäre Fachkräfte ("Springer") an Schweizer Gemeinden und Sozialdienste vermittelt. Sie digitalisiert den heute manuellen Prozess (E-Mail/Telefon) von der Personalanfrage über die Kandidatensuche bis zum abgeschlossenen Einsatz — mit klaren Rollen, Nachvollziehbarkeit und CH-spezifischer Lokalisierung.
 
 ## Target Users
-_Who will use this product? Describe their needs and pain points._
+- **Gemeinden/Sozialdienste (municipality):** Brauchen schnell qualifizierte, verfügbare Fachkräfte für befristete Einsätze, ohne selbst aufwändig suchen zu müssen.
+- **Dafinex-Admins & interne Koordinatoren (dafinex_admin, internal_coordinator):** Verwalten Anfragen, prüfen und vermitteln Kandidaten, überwachen den gesamten Prozess.
+- **Kandidaten/Springer (candidate):** Suchen befristete Einsätze bei Gemeinden, passend zu Fähigkeiten, Region und Verfügbarkeit.
+- **Super Admin (super_admin):** Systemweite Verwaltung, Rollen, Konfiguration.
+- *(Später: Partnerfirmen (partner_company) — schlagen eigene Kandidaten vor; in Phase 2)*
 
 ## Core Features (Roadmap)
 
 | Priority | Feature | Status |
 |----------|---------|--------|
-| P0 (MVP) | _Feature 1_ | Planned |
-| P0 (MVP) | _Feature 2_ | Planned |
-| P1 | _Feature 3_ | Planned |
-| P2 | _Feature 4_ | Planned |
+| P0 (MVP) | Supabase Infrastructure Setup (Auth, DB-Schema, RLS, Storage) | Planned |
+| P0 (MVP) | Gemeindenverwaltung | Planned |
+| P0 (MVP) | Kandidatenverwaltung (source_type: dafinex) | Planned |
+| P0 (MVP) | Personalanfrage-Workflow (erstellen → prüfen) | Planned |
+| P0 (MVP) | Kandidatensuche mit einfachem Matching (Filter: Fähigkeiten/Region/Verfügbarkeit) | Planned |
+| P0 (MVP) | Interner Kandidatenvorschlag → Freigabe | Planned |
+| P0 (MVP) | Gemeinde-Interview/Annahme | Planned |
+| P0 (MVP) | Einsatzverwaltung mit Statusverlauf (proposed → accepted → active → completed) | Planned |
+| P0 (MVP) | Einfache Vertragsgenerierung (generiertes Dokument, Unterschrift als Upload) | Planned |
+| P0 (MVP) | Kern-Benachrichtigungen (neue Anfrage, Vorschlag, Einsatz aktiv, Vertrag bereit) | Planned |
+| P0 (MVP) | Aktivitätenprotokoll (Basis) | Planned |
+| P0 (MVP) | Gemeindeportal + interne Dafinex-Seiten | Planned |
+| P1 | Partnerportal + Partnerfirmen-Kandidatenvorschläge | Planned |
+| P1 | Volle Matching-Score-Formel mit einstellbaren Gewichtungen | Planned |
+| P1 | Digitale Multi-Party-Signaturen mit Protokollierung | Planned |
+| P1 | Vollständiges Dokumentenmanagement (Versionierung, Ablauf, Archivierung) | Planned |
+| P2 | Vollständiges Nachrichtensystem (interne Notizen, alle Filter) | Planned |
+| P2 | Alle Benachrichtigungstrigger + Erinnerungslogik | Planned |
+| P2 | Vollständige Dashboards für alle Rollen | Planned |
 
 ## Success Metrics
-_How will you measure success? (e.g., user signups, retention, task completion rate)_
+- Mindestens 1 Gemeinde nutzt die Plattform aktiv für echte Anfragen im Pilotzeitraum
+- Durchlaufzeit Anfrage → Einsatz-Start messbar reduziert gegenüber dem heutigen manuellen Prozess
+- Mindestens 3 erfolgreich abgeschlossene Einsätze während der Pilotphase
+- Positives Feedback von Gemeinde-Ansprechpartner und internen Koordinatoren
 
 ## Constraints
-_Budget, timeline, technical limitations, team size._
+- Team: 2-3 Entwickler
+- Zeitrahmen: 2-3 Monate bis MVP
+- Backend: Supabase (PostgreSQL + Auth + Storage)
+- Design-System: siehe `docs/design-system.md`
+- Pilot mit genau einer Gemeinde, nur Dafinex-eigene Kandidaten (kein Partnerfirmen-Onboarding in Phase 1)
+- UI auf Deutsch, Gebietsschema de-CH, Währung CHF, Zeitzone Europe/Zurich
 
 ## Non-Goals
-_What are you explicitly NOT building in this version?_
+- Kein Partnerportal / keine Partnerfirmen-Integration (→ Phase 2)
+- Keine volle Matching-Score-Formel (→ Phase 2)
+- Keine digitalen Multi-Party-Signaturen (→ Phase 2)
+- Keine Lohnabrechnung/Payroll-Integration
+- Keine Rechnungsstellung/Fakturierung
+- Keine native Mobile-App (nur responsive Web)
+- Keine Mehrsprachigkeit über Deutsch hinaus
+- Keine automatisierte Vertragsprüfung durch Dritte
 
 ---
 
-Use `/requirements` to create detailed feature specifications for each item in the roadmap above.
+Use `/write-spec` to create detailed feature specifications for each item in the roadmap above.
