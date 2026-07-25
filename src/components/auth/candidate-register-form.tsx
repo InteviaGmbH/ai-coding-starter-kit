@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import {
   Form,
   FormControl,
@@ -290,7 +291,7 @@ export function CandidateRegisterForm() {
           />
         </div>
         <div className="space-y-2">
-          <FormLabel htmlFor="cv">CV / Zertifikat (optional)</FormLabel>
+          <Label htmlFor="cv">CV / Zertifikat (optional)</Label>
           <Input id="cv" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange} />
           <p className="text-sm text-muted-foreground">PDF, JPG oder PNG, max. 10 MB</p>
           {fileError && <p className="text-sm font-medium text-destructive">{fileError}</p>}

@@ -2,7 +2,7 @@
 
 ## Status: In Review
 **Created:** 2026-07-25
-**Last Updated:** 2026-07-25 (QA: 1 Critical, 1 High, 1 Medium, 1 Low — not production-ready)
+**Last Updated:** 2026-07-25 (Fix-Runde 1: BUG-1 + BUG-5 behoben; BUG-2 wartet auf Supabase-Dashboard-Änderung durch Nutzer; BUG-3/4 zurückgestellt)
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — Auth, `profiles`-Schema, RLS, Storage-Buckets
@@ -185,7 +185,8 @@ Keine neuen Tabellen. PROJ-2 liest/schreibt ausschliesslich:
 
 ### Bugs Found
 
-#### BUG-1: CandidateRegisterForm stürzt beim Rendern ab
+#### BUG-1: CandidateRegisterForm stürzt beim Rendern ab — ✅ FIXED (2026-07-25)
+- **Fix:** `FormLabel` (shadcn, benötigt `<FormField>`-Kontext) durch die einfache `Label`-Komponente ersetzt für das CV-Upload-Feld, das kein react-hook-form-Feld ist. Per E2E erneut getestet: Formular rendert und lässt sich vollständig ausfüllen (Absenden schlägt jetzt nur noch an BUG-2 an, nicht mehr an einem Absturz).
 - **Severity:** Critical
 - **Steps to Reproduce:**
   1. `/register` öffnen, Tab „Kandidat" anklicken
@@ -221,15 +222,24 @@ Keine neuen Tabellen. PROJ-2 liest/schreibt ausschliesslich:
   3. Kein Sicherheitsrisiko (Object-Storage-Keys werden nicht als Dateisystempfade aufgelöst, `(storage.foldername(name))[1]` bleibt korrekt der `candidate_id`-Präfix), aber potenziell unschöne/inkonsistente Pfade
 - **Priority:** Nice to have
 
+#### BUG-5: Vitest führte versehentlich die Playwright-E2E-Spec aus — ✅ FIXED (2026-07-25)
+- **Severity:** Medium (Tooling, nicht Anwendungslogik)
+- **Gefunden:** Beim erneuten `npm test` nach dem BUG-1-Fix — `tests/PROJ-2-*.spec.ts` (Playwright, nutzt `@playwright/test`) wurde zusätzlich von Vitest eingesammelt und schlug dort mit „Playwright Test did not expect test.describe() to be called here" fehl, da `vitest.config.ts` das `tests/`-Verzeichnis nicht ausschliesst. Ein latentes, vorbestehendes Konfigurationsproblem, das erst durch das erste E2E-Spec-File in diesem Projekt sichtbar wurde.
+- **Fix:** `vitest.config.ts` um `test.exclude: ['**/node_modules/**', '**/tests/**']` ergänzt.
+- **Priority:** Fixed
+
 ### Coverage-Lücke (dokumentiert, kein Bug)
 Freischaltung durch `dafinex_admin` und der anschliessende Login mit Redirect ins jeweilige Portal konnten nicht per E2E getestet werden, da kein `dafinex_admin`-Testkonto ohne den manuellen Bootstrap-Schritt (`supabase/README.md`) existiert. Sobald ein Testkonto verfügbar ist, sollte dieser Pfad ergänzt werden.
 
+### Fix-Runde 1 (2026-07-25)
+Auf Nutzeranweisung: BUG-1 (Code) sofort behoben und per E2E re-verifiziert (Formular stürzt nicht mehr ab). BUG-2 hängt an einer Supabase-Dashboard-Einstellung („Confirm email" deaktivieren) — das übernimmt der Nutzer selbst parallel; von mir aus nicht verifizierbar, da kein Dashboard-Zugriff. BUG-3/BUG-4 bleiben zurückgestellt (Medium/Low). BUG-5 (Tooling, beim Re-Test entdeckt) ebenfalls behoben.
+
 ### Summary
-- **Acceptance Criteria:** 3 von 14 E2E-testbar bestätigt, 2 zentrale Flows (Kandidaten-Registrierung, Gemeinde-Registrierung) schlagen in der Praxis fehl
-- **Bugs Found:** 4 total (1 Critical, 1 High, 1 Medium, 1 Low)
+- **Acceptance Criteria:** 3 von 14 E2E-testbar bestätigt, Gemeinde-Registrierung schlägt weiterhin an BUG-2 fehl (ausserhalb meiner Kontrolle), Kandidaten-Registrierung läuft jetzt bis zum selben Rate-Limit-Punkt (BUG-1 behoben)
+- **Bugs Found:** 5 total — **2 behoben** (BUG-1 Critical, BUG-5 Medium/Tooling), **1 wartet auf Nutzeraktion** (BUG-2 High, Supabase-Dashboard), **2 zurückgestellt** (BUG-3 Medium, BUG-4 Low)
 - **Security:** Keine Autorisierungslücke gefunden (RLS + serverseitige Guards greifen korrekt), aber ein UX/Berechtigungs-Mismatch (BUG-3)
-- **Production Ready:** **NO** — Critical- und High-Bug offen
-- **Recommendation:** BUG-1 (Code-Fix, klar lokalisiert) und BUG-2 (Supabase-Projekteinstellung/Fehlermeldung) vor jedem weiteren Schritt beheben
+- **Production Ready:** **NO** — BUG-2 (High) ist noch nicht als behoben bestätigt (abhängig von einer Supabase-Projekteinstellung ausserhalb meines Zugriffs)
+- **Recommendation:** Sobald „Confirm email" im Supabase-Dashboard deaktiviert ist, Registrierungs-Flow einmal manuell oder per E2E erneut bestätigen; dann ist PROJ-2 production-ready bis auf BUG-3/BUG-4
 
 ## Deployment
 _To be added by /deploy_
