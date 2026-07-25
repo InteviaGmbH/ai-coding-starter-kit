@@ -1,8 +1,8 @@
 # PROJ-2: Rollenbasierte Auth & Portal-Grundgerüst
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-07-25
-**Last Updated:** 2026-07-25
+**Last Updated:** 2026-07-25 (QA: 1 Critical, 1 High, 1 Medium, 1 Low — not production-ready)
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — Auth, `profiles`-Schema, RLS, Storage-Buckets
@@ -150,7 +150,86 @@ Keine neuen Tabellen. PROJ-2 liest/schreibt ausschliesslich:
 - Passwort-Reset nutzt den Supabase-Standardflow ohne eigene Rate-Limiting-Konfiguration.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-07-25
+**App URL:** http://localhost:3000 (laufender Dev-Server des Nutzers, echtes Supabase-Projekt)
+**Tester:** QA Engineer (AI)
+
+### Automatisierte Tests
+- `npm test`: 6/6 grün (inkl. Approval-Server-Actions)
+- `npm run build`: erfolgreich
+- Playwright-Browser (chromium, webkit) mussten zuerst installiert werden (`npx playwright install chromium webkit`) — danach lauffähig
+- E2E-Suite `tests/PROJ-2-rollenbasierte-auth-portal-grundgeruest.spec.ts`: **4 von 10 Tests bestanden** (2 Szenarien × chromium + Mobile Safari), 6 fehlgeschlagen — siehe Bugs unten
+
+### Acceptance Criteria Status
+
+#### Registrierung Gemeinde
+- [ ] BUG: Schlägt in der Praxis fehl, siehe BUG-2 (Umgebungsproblem, kein Code-Fehler in der Spec-Logik selbst)
+
+#### Registrierung Kandidat
+- [ ] BUG: Formular stürzt beim Öffnen des "Kandidat"-Tabs vollständig ab, siehe BUG-1 (Critical)
+
+#### Pending/Rejected-Screens, Rollen-Redirects, Login-Fehlermeldung, Passwort-Reset
+- [x] Unauthentifizierter Zugriff auf `/internal/dashboard` → Redirect zu `/login` (E2E bestätigt)
+- [x] Login mit falschem Passwort → generische Fehlermeldung, bleibt auf `/login` (E2E bestätigt)
+- [x] Serverseitige Rollen-Guards (Code-Review): jedes Portal-Layout prüft Rolle+Status serverseitig, kein reines Client-Verstecken
+- Restliche Kriterien (Freischaltung durch dafinex_admin, Rollen-Redirect nach aktivem Login) konnten mangels eines bereits existierenden `dafinex_admin`-Testkontos nicht per E2E durchgetestet werden (siehe Coverage-Lücke unten)
+
+### Security Audit Results (Red Team)
+- [x] Unauthentifizierter Zugriff liefert überall Redirects, keine Daten
+- [x] Login verrät nicht, ob eine E-Mail existiert (generische Fehlermeldung)
+- [x] Passwort-Reset verrät nicht, ob eine E-Mail existiert (generische Bestätigung immer)
+- [x] Freischaltungs-Server-Actions per Code-Review geprüft: Zod-Validierung der IDs, RLS als zweite Verteidigungslinie, `requireDafinexAdmin()` blockt `internal_coordinator` korrekt vor der eigentlichen Mutation
+- [ ] BUG-3 (Medium): `internal_coordinator` sieht die komplette Freischaltungsseite inkl. Buttons, obwohl er laut Spec nicht freischalten darf — Aktion schlägt erst beim Klick fehl statt die Seite/den Nav-Punkt gar nicht erst anzuzeigen
+- [ ] BUG-4 (Low): Dateiname beim CV-Upload wird nicht bereinigt (kein Sicherheitsrisiko, da Object-Storage-Keys nicht als Dateisystempfade aufgelöst werden — rein kosmetisch, z.B. bei Sonderzeichen/Leerzeichen im Dateinamen)
+
+### Bugs Found
+
+#### BUG-1: CandidateRegisterForm stürzt beim Rendern ab
+- **Severity:** Critical
+- **Steps to Reproduce:**
+  1. `/register` öffnen, Tab „Kandidat" anklicken
+  2. Erwartet: Registrierungsformular für Kandidaten wird angezeigt
+  3. Tatsächlich: Next.js Runtime-Error-Overlay — `useFormField should be used within <FormField>` in `src/components/ui/form.tsx:48`, ausgelöst von `<FormLabel htmlFor="cv">` im CV-Upload-Abschnitt von `candidate-register-form.tsx`, das ausserhalb eines `<FormField>`/`<FormItem>`-Kontexts verwendet wird (der CV-Upload ist kein react-hook-form-Feld, sondern manuell mit `useState` verwaltet)
+  4. Wirkung: Die komplette Kandidaten-Registrierung ist unbenutzbar — bestätigt durch E2E-Test (Timeout beim Warten auf das Vorname-Feld, weil die Seite bereits abgestürzt ist, bevor das Feld je sichtbar wurde)
+- **Priority:** Fix before deployment
+
+#### BUG-2: Registrierung schlägt wegen Supabase E-Mail-Rate-Limit fehl
+- **Severity:** High
+- **Steps to Reproduce:**
+  1. Diagnose-Skript hat die tatsächliche Supabase-Antwort auf `signUp()` mitgeloggt: `429 {"code":"over_email_send_rate_limit","message":"email rate limit exceeded"}`
+  2. Erwartet: Registrierung erzeugt einen Account, ohne dass Supabase in kurzer Zeit blockiert
+  3. Tatsächlich: Supabase versucht bei jedem `signUp()` eine E-Mail zu versenden und trifft das strikte Standard-Rate-Limit des eingebauten E-Mail-Providers (ohne eigenes SMTP typischerweise nur einzelne E-Mails pro Stunde) — bereits 2–3 Registrierungsversuche kurz hintereinander reichen aus
+  4. Vermutete Ursache: „Confirm email" ist im Supabase-Dashboard vermutlich noch nicht deaktiviert (in `supabase/README.md` als nötiger Setup-Schritt dokumentiert), oder Supabase versendet unabhängig davon eine Willkommens-/Bestätigungsmail
+  5. Auswirkung: Nicht nur auf die Test-Suite beschränkt — im echten Pilotbetrieb würden mehrere Gemeinde-/Kandidaten-Registrierungen kurz hintereinander ebenfalls fehlschlagen, mit der generischen Fehlermeldung "Registrierung fehlgeschlagen", die den wahren Grund verschleiert
+- **Priority:** Fix before deployment (Konfiguration prüfen; zusätzlich: generische Fehlermeldung im Formular sollte Rate-Limit-Fälle künftig unterscheiden, statt sie als "bereits registriert"-ähnlichen Standardfehler zu verschleiern)
+
+#### BUG-3: `internal_coordinator` sieht Freischaltungsseite ohne Berechtigung zu haben
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Als `internal_coordinator` einloggen (aktiv)
+  2. Nav-Punkt „Freischaltungen" ist sichtbar und die Seite lädt die volle Liste inkl. Kandidaten-/Gemeinde-Details
+  3. Erwartet laut PROJ-1-Entscheidung: Nur `dafinex_admin`/`super_admin` dürfen freischalten
+  4. Tatsächlich: Erst der Klick auf „Freischalten"/„Ablehnen" schlägt mit „Keine Berechtigung." fehl — die Seite selbst hätte für diese Rolle gar nicht erst zugänglich sein sollen
+- **Priority:** Fix in next sprint
+
+#### BUG-4: CV-Dateiname wird nicht bereinigt
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. CV mit Sonderzeichen/Leerzeichen im Dateinamen hochladen
+  2. Pfad wird unverändert als `<candidate_id>/<originalDateiname>` gespeichert
+  3. Kein Sicherheitsrisiko (Object-Storage-Keys werden nicht als Dateisystempfade aufgelöst, `(storage.foldername(name))[1]` bleibt korrekt der `candidate_id`-Präfix), aber potenziell unschöne/inkonsistente Pfade
+- **Priority:** Nice to have
+
+### Coverage-Lücke (dokumentiert, kein Bug)
+Freischaltung durch `dafinex_admin` und der anschliessende Login mit Redirect ins jeweilige Portal konnten nicht per E2E getestet werden, da kein `dafinex_admin`-Testkonto ohne den manuellen Bootstrap-Schritt (`supabase/README.md`) existiert. Sobald ein Testkonto verfügbar ist, sollte dieser Pfad ergänzt werden.
+
+### Summary
+- **Acceptance Criteria:** 3 von 14 E2E-testbar bestätigt, 2 zentrale Flows (Kandidaten-Registrierung, Gemeinde-Registrierung) schlagen in der Praxis fehl
+- **Bugs Found:** 4 total (1 Critical, 1 High, 1 Medium, 1 Low)
+- **Security:** Keine Autorisierungslücke gefunden (RLS + serverseitige Guards greifen korrekt), aber ein UX/Berechtigungs-Mismatch (BUG-3)
+- **Production Ready:** **NO** — Critical- und High-Bug offen
+- **Recommendation:** BUG-1 (Code-Fix, klar lokalisiert) und BUG-2 (Supabase-Projekteinstellung/Fehlermeldung) vor jedem weiteren Schritt beheben
 
 ## Deployment
 _To be added by /deploy_
