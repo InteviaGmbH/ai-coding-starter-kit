@@ -405,8 +405,31 @@ create policy "personnel_requests_insert" on personnel_requests for insert
 create policy "personnel_requests_update_internal" on personnel_requests for update
   using (public.is_internal_role());
 
+-- The owning municipality may edit/withdraw their own request, but only
+-- while it's still unreviewed (status = 'created'); marking it 'reviewed'
+-- remains exclusive to internal roles via the policy above.
+create policy "personnel_requests_update_own_when_created" on personnel_requests for update
+  using (
+    public.is_active()
+    and public.current_role() = 'municipality'
+    and municipality_id = public.current_municipality_id()
+    and status = 'created'
+  )
+  with check (
+    municipality_id = public.current_municipality_id()
+    and status = 'created'
+  );
+
 create policy "personnel_requests_delete_internal" on personnel_requests for delete
   using (public.is_internal_role());
+
+create policy "personnel_requests_delete_own_when_created" on personnel_requests for delete
+  using (
+    public.is_active()
+    and public.current_role() = 'municipality'
+    and municipality_id = public.current_municipality_id()
+    and status = 'created'
+  );
 
 -- --- candidate_proposals ---------------------------------------------------------------
 create policy "candidate_proposals_select" on candidate_proposals for select

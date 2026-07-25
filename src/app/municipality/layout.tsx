@@ -2,7 +2,10 @@ import { redirect } from "next/navigation"
 import { getCurrentProfile, getPortalPathForProfile } from "@/lib/auth/get-current-profile"
 import { PortalShell, type PortalNavItem } from "@/components/portal/portal-shell"
 
-const navItems: PortalNavItem[] = [{ label: "Dashboard", href: "/municipality/dashboard" }]
+const navItems: PortalNavItem[] = [
+  { label: "Dashboard", href: "/municipality/dashboard" },
+  { label: "Anfragen", href: "/municipality/requests" },
+]
 
 export default async function MunicipalityLayout({ children }: { children: React.ReactNode }) {
   const profile = await getCurrentProfile()
