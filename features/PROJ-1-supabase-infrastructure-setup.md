@@ -1,8 +1,8 @@
 # PROJ-1: Supabase Infrastructure Setup
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-07-25
-**Last Updated:** 2026-07-25
+**Last Updated:** 2026-07-25 (refine: assignment/proposal status correction)
 
 ## Dependencies
 - None (fundamentales Infrastruktur-Feature, alle weiteren Features bauen darauf auf)
@@ -71,6 +71,7 @@
 | `partner_company` bleibt nur Rollen-Enum ohne eigene Tabellen in Phase 1 | Phase-2-Feature gemäss PRD | 2026-07-25 |
 | Supabase-Projekt in EU-Region | Schweizer B2B-Produkt mit Personendaten, DSG/nDSG-Anforderung | 2026-07-25 |
 | Kandidaten können bei Registrierung Dokumente hochladen | Wird von Gemeinden/internen Koordinatoren zur Beurteilung erwartet | 2026-07-25 |
+| Kein eigener Status für Gemeinde-Interview/-Interesse (`municipality_interested`/`municipality_interview`) in Phase 1 — Interview läuft informell ohne Statusabbildung | Reduziert Komplexität für den Pilot mit einer Gemeinde; bei Bedarf in Phase 2 ergänzbar | 2026-07-25 |
 
 ### Technical Decisions
 <!-- Added by /architecture -->
@@ -83,6 +84,7 @@
 | Private Storage-Bereiche mit zeitlich begrenzten Zugriffslinks statt öffentlicher Dateiablage | Verträge und CVs enthalten sensible Personendaten | 2026-07-25 |
 | Freischaltung/Ablehnung löst zusätzlich zur In-App-Benachrichtigung eine E-Mail aus (via Resend) | Nutzer merkt sonst evtl. nicht, dass sein Konto freigeschaltet wurde, da er sich ohne Freischaltung nicht sinnvoll einloggen kann | 2026-07-25 |
 | Alle Tabellen erhalten einheitliche Standard-Felder: id, created_date, updated_date, created_by_id, created_by, optional is_sample | Konsistente Nachvollziehbarkeit über alle Entitäten hinweg; is_sample erlaubt spätere Kennzeichnung von Demo-/Testdaten getrennt von echten Produktionsdaten | 2026-07-25 |
+| Korrektur: `assignment_status` wieder auf `proposed/accepted/active/completed` (kein `declined`); `proposal_status` stattdessen um `municipality_accepted`/`municipality_declined` erweitert | Ein Einsatz wird laut Kernprozess erst nach Gemeinde-Annahme erstellt — eine Ablehnung kann daher nie als Einsatz-Status auftreten, sondern gehört an den Kandidatenvorschlag (im Refine-Gespräch vom Nutzer korrigiert) | 2026-07-25 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
@@ -107,9 +109,9 @@ PROJ-1 hat keine eigene Benutzeroberfläche — es ist reine Infrastruktur (Date
 
 **Personalanfragen** — Gemeinde, gesuchte Qualifikation/Rolle, Region, Zeitraum, Status (erstellt/geprüft), erstellt von
 
-**Kandidatenvorschläge** — Verweis auf Anfrage + Kandidat, vorgeschlagen von, Status (vorgeschlagen/freigegeben/abgelehnt)
+**Kandidatenvorschläge** — Verweis auf Anfrage + Kandidat, vorgeschlagen von, Status: `proposed` (vorgeschlagen) → `approved`/`rejected` (interne Freigabe/Ablehnung durch Dafinex) → bei interner Freigabe zusätzlich `municipality_accepted`/`municipality_declined` (Entscheidung der Gemeinde nach dem — für den P1-Pilot informellen — Interview). Ein Einsatz wird ausschliesslich bei `municipality_accepted` erstellt.
 
-**Einsätze** — Verweis auf Vorschlag, Statusverlauf (proposed → accepted → active → completed), Start-/Enddatum
+**Einsätze** — Verweis auf einen bereits von der Gemeinde akzeptierten Vorschlag, Statusverlauf (proposed → accepted → active → completed), Start-/Enddatum. Da ein Einsatz erst nach Gemeinde-Annahme entsteht, gibt es hier keinen „abgelehnt"-Status — eine Ablehnung wird bereits vorher am Kandidatenvorschlag festgehalten.
 
 **Verträge** — Verweis auf Einsatz, generiertes Dokument, hochgeladene unterschriebene Version, Status
 
@@ -135,6 +137,21 @@ PROJ-1 hat keine eigene Benutzeroberfläche — es ist reine Infrastruktur (Date
 - `@supabase/ssr` — Session-Handling für Next.js App Router (Server- und Client-Komponenten)
 - `zod` — Validierung von Formulareingaben
 - `resend` — Transaktionale E-Mails (Konto-Freischaltung/Ablehnung)
+
+## Implementation Notes (Backend)
+**Umgesetzt:**
+- SQL-Migration `supabase/migrations/20260725120000_init_schema.sql`: alle 9 Tabellen, Enums, Standard-Felder (`id`, `created_date`, `updated_date`, `created_by_id`, `created_by`, `is_sample`), RLS-Policies je Rolle, Indexe, `updated_date`-Trigger, `handle_new_user`-Trigger (legt bei Supabase-Auth-Signup automatisch ein `profiles`-Row mit `account_status = 'pending'` an), zwei private Storage-Buckets (`candidate-documents`, `contracts`) inkl. Storage-RLS.
+- `supabase/README.md`: Setup-Anleitung (Projekt anlegen, Migration ausführen, Env-Vars befüllen).
+- Supabase-Client-Struktur unter `src/lib/supabase/`: `client.ts` (Browser), `server.ts` (Server Components/Route Handlers), `admin.ts` (Service-Role, nur serverseitig), `middleware.ts` (Session-Refresh-Helper). Alter Platzhalter `src/lib/supabase.ts` entfernt.
+- `src/proxy.ts` für Session-Refresh auf jedem Request — bewusst `proxy.ts` statt `middleware.ts` benannt, da Next.js 16 die `middleware`-Konvention zugunsten von `proxy` deprecated hat (Codemod-Hinweis beim Build bestätigt).
+- `GET /api/health` + Vitest-Tests (`src/app/api/health/health.test.ts`, gemockter Supabase-Client) — deckt Akzeptanzkriterium „Applikation kann sich mit der Datenbank verbinden" ab, ohne dass Tests echte Zugangsdaten brauchen.
+- Paket installiert: `@supabase/ssr`. `npm run build`, `npm test` grün.
+
+**Abweichungen vom Tech Design:**
+- `resend` (E-Mail bei Freischaltung/Ablehnung) ist **noch nicht installiert/implementiert**. Die eigentliche Freischaltungs-Aktion (API-Route, die die E-Mail auslöst) gehört laut Out-of-Scope-Abschnitt zur Freischaltungs-Oberfläche und wird erst mit PROJ-2 bzw. der zugehörigen Backend-Arbeit gebaut. Die Infrastruktur (Tabellen, Status-Feld) ist bereit dafür.
+- ~~`assignment_status`-Enum enthält zusätzlich den Wert `declined`~~ → **Behoben per `/refine` (2026-07-25):** `declined` aus `assignment_status` entfernt (zurück auf `proposed/accepted/active/completed`), stattdessen `proposal_status` um `municipality_accepted`/`municipality_declined` erweitert — siehe Decision Log. Migration entsprechend angepasst.
+- Das reale Supabase-Projekt wurde **nicht** durch mich provisioniert — dafür fehlen mir Zugangsdaten/CLI-Zugriff. Die Migration muss im vorhandenen Projekt (SQL Editor) ausgeführt und `.env.local` befüllt werden (siehe `supabase/README.md`).
+- `npm run lint` ist aktuell nicht lauffähig — Next.js 16 hat den Befehl `next lint` entfernt (vorbestehendes Problem, nicht durch PROJ-1 verursacht).
 
 ## QA Test Results
 _To be added by /qa_
