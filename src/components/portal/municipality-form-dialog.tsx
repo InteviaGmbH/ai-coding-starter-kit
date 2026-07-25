@@ -82,7 +82,15 @@ export function MunicipalityFormDialog({
     }
 
     setOpen(false)
-    form.reset(values)
+    // In "create" mode this dialog is a single shared instance (not one per
+    // row), so resetting to the just-submitted values would pre-fill the
+    // next "Neue Gemeinde" with the previous municipality's data. Reset to
+    // blank instead; "edit" mode can safely keep showing what was just saved.
+    form.reset(
+      mode === "create"
+        ? { name: "", address: "", contactName: "", contactEmail: "", contactPhone: "" }
+        : values
+    )
     router.refresh()
   }
 

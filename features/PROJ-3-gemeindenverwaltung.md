@@ -1,8 +1,8 @@
 # PROJ-3: Gemeindenverwaltung
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-07-25
-**Last Updated:** 2026-07-25
+**Last Updated:** 2026-07-25 (QA: 1 Medium gefunden und vor Auslieferung behoben — production-ready)
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — `municipalities`-Tabelle, RLS
@@ -114,7 +114,49 @@ Keine neuen Tabellen. Nutzt ausschliesslich `municipalities` (Stammdaten) und `p
 - Ursprünglich für Lösch-Bestätigungen `AlertDialogAction` verwendet — Radix schliesst diesen Button-Typ immer sofort beim Klick, unabhängig vom Ergebnis der async-Aktion. Das hätte eine Fehlermeldung (z.B. „Gemeinde kann nicht gelöscht werden") nie sichtbar gemacht, da der Dialog schon geschlossen wäre. Durch einen normalen `Button` mit manueller State-Kontrolle ersetzt (gleiches Muster wie `ApproveRejectDialog` aus PROJ-2).
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-07-25
+**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt)
+**Tester:** QA Engineer (AI)
+
+### Automatisierte Tests
+- `npm test`: 11/11 grün (inkl. 5 neuer Tests für die Gemeinden-Server-Actions)
+- `npm run build`: erfolgreich
+- E2E (`tests/PROJ-3-gemeindenverwaltung.spec.ts`): 2/2 grün (nicht authentifizierter Zugriff auf Liste/Detailseite → Redirect zu `/login`)
+
+### Coverage-Lücke (dokumentiert, kein Bug)
+Eingeloggte CRUD-Flows (Anlegen/Bearbeiten/Löschen einer Gemeinde, Lösch-Schutz bei verknüpften Kontakten) konnten mangels eines aktiven `dafinex_admin`-Testkontos nicht per E2E gegen die echte Anwendung durchgetestet werden (gleiche Einschränkung wie bei PROJ-2). Stattdessen abgedeckt durch: Vitest-Tests der Server Actions (gemockter Supabase-Client) + manuelle Code-Review.
+
+### Acceptance Criteria Status
+- [x] Serverseitiger Rollen-Guard bestätigt (E2E: unauthentifizierter Zugriff → Redirect)
+- [x] Zod-Validierung serverseitig bestätigt (Vitest: leerer Name wird abgelehnt)
+- [x] Lösch-Schutz bei verknüpften Ansprechpartner-Konten bestätigt (Vitest, Code-Review der `ON DELETE SET NULL`-Falle)
+- [ ] Restliche UI-Kriterien (Tabelle, leerer Zustand, Bearbeiten-Dialog, Detailansicht) nur per Code-Review geprüft, nicht per Klick-Test — siehe Coverage-Lücke
+
+### Security Audit Results (Red Team)
+- [x] Unauthentifizierter Zugriff → Redirect, keine Daten sichtbar
+- [x] Server Actions prüfen Rolle+Status serverseitig (nicht nur RLS als einzige Verteidigungslinie)
+- [x] UUID-Validierung auf allen IDs vor DB-Zugriff
+- [x] Lösch-Logik gegen die tatsächliche FK-Konfiguration aus PROJ-1 geprüft (nicht nur angenommen) — `profiles.municipality_id` ist `ON DELETE SET NULL`, nicht `RESTRICT`; explizite Zählabfrage ergänzt, bevor der ursprüngliche Spec-Entwurf das als reinen DB-Fehler-Fang behandelt hätte
+
+### Bugs Found
+
+#### BUG-1: „Neue Gemeinde"-Dialog zeigt nach der ersten Anlage vorausgefüllte alte Daten — ✅ FIXED (2026-07-25, vor Auslieferung per Code-Review gefunden)
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Gemeinde A anlegen (Dialog schliesst, `form.reset(values)` setzt das Formular auf die gerade abgeschickten Werte statt auf leer)
+  2. „Neue Gemeinde" erneut öffnen (derselbe Dialog, nur eine Instanz pro Seite, nicht pro Zeile)
+  3. Erwartet: Leeres Formular
+  4. Tatsächlich (vor Fix): Formular zeigt Name/Adresse/etc. von Gemeinde A vorausgefüllt an
+- **Fix:** Im Erfolgsfall wird im „create"-Modus explizit auf leere Werte zurückgesetzt statt auf die übermittelten Werte; „edit"-Modus (eine Dialog-Instanz pro Zeile) bleibt unverändert, da dort keine Verwechslungsgefahr besteht.
+- **Priority:** Fixed
+
+### Summary
+- **Acceptance Criteria:** Serverseitige/Validierungs-Kriterien bestätigt; reine Klick-UI-Kriterien nur per Code-Review (Coverage-Lücke dokumentiert)
+- **Bugs Found:** 1 total (1 Medium, noch vor Auslieferung behoben — 0 offen)
+- **Security:** Keine Autorisierungslücke gefunden; ein potenzieller Datenverlust-Fall (stille Verwaisung von Kontakten beim Löschen) wurde bereits während der Implementierung erkannt und durch eine explizite Prüfung verhindert
+- **Production Ready:** **YES** — keine offenen Critical/High-Bugs
+- **Empfehlung:** Sobald ein `dafinex_admin`-Testkonto verfügbar ist (z.B. nach dem PROJ-1-Bootstrap-Schritt), die UI-Flows einmal manuell/per E2E nachträglich verifizieren
 
 ## Deployment
 _To be added by /deploy_
