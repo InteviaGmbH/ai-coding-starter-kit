@@ -14,7 +14,7 @@ Dafinex ist eine B2B-Vermittlungs- und Einsatzplattform, die temporäre Fachkrä
 
 | Priority | Feature | Status |
 |----------|---------|--------|
-| P0 (MVP) | Supabase Infrastructure Setup (Auth, DB-Schema, RLS, Storage) | In Progress — Spec: [PROJ-1](../features/PROJ-1-supabase-infrastructure-setup.md) |
+| P0 (MVP) | Supabase Infrastructure Setup (Auth, DB-Schema, RLS, Storage) | Approved — Spec: [PROJ-1](../features/PROJ-1-supabase-infrastructure-setup.md) |
 | P0 (MVP) | Gemeindenverwaltung | Planned |
 | P0 (MVP) | Kandidatenverwaltung (source_type: dafinex) | Planned |
 | P0 (MVP) | Personalanfrage-Workflow (erstellen → prüfen) | Planned |

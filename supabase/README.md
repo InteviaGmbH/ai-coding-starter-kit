@@ -1,8 +1,8 @@
 # Supabase Setup — Dafinex
 
-## One-time setup
+## One-time setup (brand-new Supabase project)
 1. Create a Supabase project at [supabase.com](https://supabase.com) in the **Frankfurt (EU)** region (required for DSG/nDSG compliance — see PROJ-1 spec).
-2. In the Supabase dashboard, open **SQL Editor** and run `migrations/20260725120000_init_schema.sql`.
+2. In the Supabase dashboard, open **SQL Editor** and run `migrations/20260725120000_init_schema.sql` — it already includes the BUG-1–4 fixes below, nothing else to run.
 3. Copy `.env.local.example` to `.env.local` and fill in:
    - `NEXT_PUBLIC_SUPABASE_URL` — Project Settings → API → Project URL
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Project Settings → API → anon public key
@@ -23,6 +23,11 @@ Since self-registration can never create `dafinex_admin`/`super_admin`/`internal
 update profiles set role = 'super_admin', account_status = 'active' where email = 'you@example.com';
 ```
 After that, this first admin can invite/promote further internal staff through the normal app (any `dafinex_admin` can update another profile's `role`/`account_status`).
+
+## If you already ran the migration once
+`migrations/20260725120000_init_schema.sql` is **not idempotent** (plain `create table`/`create type`/`create policy`, no `if not exists` guards) — re-running the whole file against a database that already has these objects will fail with "already exists" errors.
+
+If you already successfully ran it before the 2026-07-25 QA fix round (BUG-1–4: role-escalation on signup, self-assignment to any municipality/candidate, missing `account_status` check, candidates unable to self-register), run only the incremental patch instead: `migrations/20260725130000_fix_rls_bugs_1_4.sql`. It's safe to re-run — every `DROP` uses `IF EXISTS` and every function uses `CREATE OR REPLACE`.
 
 ## Future migrations
 Add new files to `migrations/` named `<timestamp>_<description>.sql` and run them the same way. Once the Supabase CLI is set up locally, `supabase db push` can apply them directly instead of the SQL Editor.
