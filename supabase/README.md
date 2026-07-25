@@ -7,6 +7,7 @@
    - `NEXT_PUBLIC_SUPABASE_URL` — Project Settings → API → Project URL
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Project Settings → API → anon public key
    - `SUPABASE_SERVICE_ROLE_KEY` — Project Settings → API → service_role key (server-only, never expose to the browser)
+4. Under **Authentication → Sign In / Providers → Email**, turn **"Confirm email" OFF**. Self-registration (PROJ-2) is already gated by our own `account_status = 'pending'` approval step, and the candidate registration flow creates the `candidates` row and uploads the CV *immediately after* `signUp()` using the new session — that only works if a session is returned right away instead of after an email-confirmation round-trip.
 
 ## Schema overview
 - **Enums:** `user_role`, `account_status`, `candidate_source_type`, `request_status`, `proposal_status`, `assignment_status`, `contract_status`
