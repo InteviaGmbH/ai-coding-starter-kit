@@ -20,7 +20,7 @@
 | PROJ-3 | Gemeindenverwaltung | Approved | [PROJ-3](PROJ-3-gemeindenverwaltung.md) | 2026-07-25 |
 | PROJ-4 | Kandidatenverwaltung | Approved | [PROJ-4](PROJ-4-kandidatenverwaltung.md) | 2026-07-25 |
 | PROJ-5 | Personalanfrage-Workflow (erstellen & prüfen) | Approved | [PROJ-5](PROJ-5-personalanfrage-workflow.md) | 2026-07-25 |
-| PROJ-6 | Kandidatensuche mit Matching-Filter | Planned | [PROJ-6](PROJ-6-kandidatensuche-matching-filter.md) | 2026-07-25 |
+| PROJ-6 | Kandidatensuche mit Matching-Filter | Architected | [PROJ-6](PROJ-6-kandidatensuche-matching-filter.md) | 2026-07-25 |
 | PROJ-7 | Kandidatenvorschlag & interne Freigabe | Roadmap | — | 2026-07-25 |
 | PROJ-8 | Gemeinde-Interview & Annahme | Roadmap | — | 2026-07-25 |
 | PROJ-9 | Einsatzverwaltung mit Statusverlauf | Roadmap | — | 2026-07-25 |

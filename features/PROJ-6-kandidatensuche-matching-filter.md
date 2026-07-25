@@ -1,6 +1,6 @@
 # PROJ-6: Kandidatensuche mit Matching-Filter
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-07-25
 **Last Updated:** 2026-07-25
 
@@ -49,7 +49,7 @@
 
 ## Open Questions
 <!-- Unresolved questions from the spec interview. Close them in /refine when answered. -->
-- [ ] Soll der Region-Abgleich exakte Übereinstimmung oder ein "enthält"-Vergleich sein, angesichts uneinheitlicher Schreibweisen (z.B. „Zürich" vs. „Kanton Zürich")? Vorläufige Annahme für die Architektur: Teilstring-Vergleich, case-insensitive.
+- [x] Soll der Region-Abgleich exakte Übereinstimmung oder ein "enthält"-Vergleich sein? → Entschieden in `/architecture`: case-insensitiver Teilstring-Vergleich (2026-07-25)
 
 ## Decision Log
 
@@ -66,12 +66,41 @@
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Keine neue Tabelle — nutzt `candidates`, `personnel_requests`, `profiles` aus PROJ-1/4/5 | Alle benötigten Felder existieren bereits | 2026-07-25 |
+| Eigene Route `/internal/requests/[id]/candidates` statt Erweiterung der allgemeinen `/internal/candidates`-Seite um einen Anfrage-Modus | Hält PROJ-4 (allgemeine Kandidatenverwaltung) konzeptionell einfach; die Matching-Suche ist ein eigener, zweckgebundener Bildschirm mit anderem Zweck (Auswahl für eine konkrete Anfrage statt Verwaltung) | 2026-07-25 |
+| Filter werden als URL-Suchparameter abgebildet (`skills`, `region`), die Seite ist eine Server Component, die anhand der Parameter neu lädt | Filter sind dadurch teilbar/verlinkbar und es ist keine doppelte Client-/Server-Filterlogik nötig — konsistent mit dem App-Router-Modell | 2026-07-25 |
+| Innerhalb des Fähigkeiten-Filters genügt **eine** Übereinstimmung (ODER-Verknüpfung der einzelnen Fähigkeiten aus der Anfrage), zwischen den Filterkategorien Fähigkeiten/Region gilt UND | Eine Anfrage kann mehrere Fähigkeiten verlangen, ohne dass ein Kandidat zwingend alle gleichzeitig mitbringen muss — sonst wäre der Kandidatenpool im Pilot schnell leer; entspricht dem in der Spec beschriebenen „einfachen" Filterverhalten | 2026-07-25 |
+| Region-Abgleich als case-insensitiver Teilstring-Vergleich (löst die offene Frage aus der Spec) | Pragmatische Lösung für uneinheitliche Schreibweisen (z.B. „Zürich" vs. „Kanton Zürich"), ohne eine kontrollierte Liste von Regionen einzuführen (wäre grösserer Scope) | 2026-07-25 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Component Structure
+```
+/internal/requests/[id]/candidates/        — Matching-Suche (Server Component)
+  ├── MatchFiltersBar (Client)                Fähigkeiten (Mehrfachauswahl/Tags) + Region (Text), vorausgefüllt aus der Anfrage, Änderungen aktualisieren die URL
+  └── MatchingCandidatesTable                 Name, Fähigkeiten, Region, Verfügbarkeit (nur Anzeige), deaktivierter "Kandidat vorschlagen"-Button je Zeile
+  └── Empty State                             "Keine passenden Kandidaten gefunden" bei leerer Trefferliste
+
+Ergänzung auf /internal/requests/[id]/ (PROJ-5): neuer Button "Kandidaten suchen" → verlinkt hierher mit den Anfrage-Kriterien als initiale URL-Parameter
+```
+
+### Data Model
+Keine neuen Tabellen. Nutzt:
+- `personnel_requests` — liefert Titel, Fähigkeiten, Region der Anfrage als Filter-Vorbelegung
+- `candidates` — Fähigkeiten, Region, Verfügbarkeit für die Trefferliste
+- `profiles` — um Kandidaten mit ausstehendem (nicht freigeschaltetem) Konto auszuschliessen
+
+### Tech Decisions (Begründung)
+- **Eigene, zweckgebundene Route statt Wiederverwendung der PROJ-4-Seite** — die Matching-Suche dient einem anderen Zweck (Kandidat für eine bestimmte Anfrage finden) als die allgemeine Kandidatenverwaltung; getrennt zu halten vermeidet, dass eine Seite zwei Verantwortlichkeiten übernimmt.
+- **Filter als URL-Parameter** — macht die Suche verlinkbar/teilbar und hält die Logik serverseitig an einer Stelle statt Filterzustand doppelt (Client + Server) zu verwalten.
+- **ODER innerhalb der Fähigkeiten, UND zwischen Fähigkeiten/Region** — verhindert, dass die Suche bei mehreren geforderten Fähigkeiten sofort leer läuft; entspricht der "einfachen" (nicht score-basierten) Filterlogik aus der Spec.
+- **Region als Teilstring-Vergleich** — pragmatischer Kompromiss angesichts uneinheitlicher Schreibweisen, ohne eine kontrollierte Regionsliste einzuführen.
+
+### Dependencies (zu installierende Pakete)
+- Keine neuen Pakete — nutzt bereits vorhandene shadcn-Komponenten (Table, Badge, Input, Button) aus PROJ-3/4/5.
 
 ## Implementation Notes (Frontend/Backend)
 _To be added by /frontend and /backend_
