@@ -1,8 +1,8 @@
 # PROJ-6: Kandidatensuche mit Matching-Filter
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-07-25
-**Last Updated:** 2026-07-25
+**Last Updated:** 2026-07-25 (QA: 1 Low gefunden, kein Sicherheitsrisiko — production-ready)
 
 ## Dependencies
 - Requires: PROJ-4 (Kandidatenverwaltung) — Kandidaten-Datenmodell, Stammdaten
@@ -116,7 +116,53 @@ Keine neuen Tabellen. Nutzt:
 - Region-Filter ist ein einfacher `ILIKE`-Teilstring-Vergleich; enthält der eingegebene Text SQL-`LIKE`-Sonderzeichen (`%`, `_`), wirken sie als Platzhalter statt als literale Zeichen. Kein Sicherheitsrisiko (kein SQL-Injection-Vektor, Supabase parametrisiert), nur ein kleiner Kuriosum bei der Textsuche — für den Pilot als vernachlässigbar eingestuft.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-07-25
+**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt)
+**Tester:** QA Engineer (AI)
+
+### Automatisierte Tests
+- `npm test`: 25/25 grün (keine neuen Server Actions in PROJ-6, daher keine neuen Unit-Tests nötig)
+- `npm run build`: erfolgreich
+- E2E (`tests/PROJ-6-kandidatensuche-matching-filter.spec.ts`): 1/1 grün (nicht authentifizierter Zugriff → Redirect zu `/login`)
+
+### Coverage-Lücke (dokumentiert, kein Bug)
+Die eigentliche Filterlogik (Fähigkeiten-ODER-Match, Region-Teilstring, Ausschluss ausstehender Konten, Platzhalter-Button) konnte mangels aktivem `dafinex_admin`-Testkonto und echter Anfrage-/Kandidatendaten nicht per E2E gegen die echte Anwendung getestet werden (gleiche Einschränkung wie PROJ-2/3/4/5). Abgedeckt durch Code-Review der Server-Component-Logik.
+
+### Acceptance Criteria Status
+- [x] Serverseitiger Rollen-Guard bestätigt (E2E: unauthentifizierter Zugriff → Redirect)
+- [x] Vorbelegung der Filter aus der Anfrage beim ersten Aufruf (Code-Review: `hasFilterParams`-Logik unterscheidet korrekt zwischen „noch nie gefiltert" und „bewusst leerer Filter")
+- [x] Entfernen/Ändern eines Filters wirkt sich korrekt aus (Code-Review: URL-Parameter sind alleinige Quelle der Wahrheit, sobald einmal gesetzt)
+- [x] Kein Filter aktiv → alle infrage kommenden Kandidaten (Code-Review: leere Arrays/Strings überspringen die jeweilige `.overlaps()`/`.ilike()`-Bedingung korrekt)
+- [x] Ausstehende Konten werden ausgeblendet, intern erfasste Kandidaten nicht betroffen (Code-Review: `profile_id === null` immer eingeschlossen, sonst nur bei `account_status === 'active'`)
+- [x] Verfügbarkeit nur Anzeige, kein Filter (Code-Review bestätigt: keine `availability`-Bedingung in der Query)
+- [x] Leere Trefferliste zeigt Hinweistext (Code-Review: `MatchingCandidatesTable` early return bei `candidates.length === 0`)
+- [x] Deaktivierter „Kandidat vorschlagen"-Button mit Hinweis auf PROJ-7 vorhanden (Code-Review)
+
+### Security Audit Results (Red Team)
+- [x] Unauthentifizierter Zugriff → Redirect, keine Daten sichtbar (E2E bestätigt)
+- [x] Reine Lesefunktion ohne Server Actions/Mutationen — kein zusätzlicher Schreibpfad zu prüfen
+- [x] Ungültige/fremde Anfrage-ID in der URL → `notFound()` statt Datenleck oder Absturz (Code-Review: `.single()` liefert bei fehlendem/ungültigem Datensatz `null`, sauber abgefangen)
+- [x] Region-Filter nutzt parametrisierte Supabase-Query (`.ilike()`), kein SQL-Injection-Vektor über den Freitext möglich
+- [ ] BUG-1 (Low): Region-Filter interpretiert `%`/`_` im Sucheingabefeld als SQL-`LIKE`-Platzhalter statt als literale Zeichen (kein Sicherheitsrisiko, nur ungenaues Suchverhalten in einem sehr seltenen Fall)
+
+### Bugs Found
+
+#### BUG-1: Region-Filter behandelt `%`/`_` als Platzhalter statt als literale Zeichen
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Im Region-Filter einen Text mit `%` oder `_` eingeben (z.B. „Bern_West")
+  2. Erwartet: Zeichen werden literal gesucht
+  3. Tatsächlich: `%`/`_` wirken als SQL-`LIKE`-Platzhalter (z.B. `_` matcht ein beliebiges Zeichen), was zu unerwartet breiten oder schmalen Treffermengen führen kann
+  4. Kein Sicherheitsrisiko (Supabase parametrisiert die Anfrage ordnungsgemäss), rein kosmetisches Suchverhalten
+- **Priority:** Nice to have
+
+### Summary
+- **Acceptance Criteria:** Alle 8 testbaren Kriterien per Code-Review bestätigt; Rollen-Guard zusätzlich per E2E verifiziert
+- **Bugs Found:** 1 total (1 Low, kein Sicherheitsrisiko)
+- **Security:** Keine Autorisierungslücke; reine Lesefunktion mit sauberer Fehlerbehandlung bei ungültigen IDs
+- **Production Ready:** **YES** — keine offenen Critical/High/Medium-Bugs
+- **Empfehlung:** BUG-1 kann gesammelt mit den analogen Low-Findings aus PROJ-2/PROJ-4 in einem späteren Aufräum-Pass behoben werden; sobald ein `dafinex_admin`-Testkonto mit echten Anfrage-/Kandidatendaten existiert, die Filterlogik einmal manuell end-to-end verifizieren
 
 ## Deployment
 _To be added by /deploy_
