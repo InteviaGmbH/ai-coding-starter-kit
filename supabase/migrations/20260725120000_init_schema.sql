@@ -42,51 +42,12 @@ create type assignment_status as enum ('proposed', 'accepted', 'active', 'comple
 create type contract_status as enum ('generated', 'signed');
 
 -- ============================================================================
--- Helper functions (SECURITY DEFINER to avoid RLS recursion on profiles)
--- ============================================================================
-create function public.current_role() returns user_role
-  language sql security definer stable set search_path = public as $$
-  select role from profiles where id = auth.uid();
-$$;
-
-create function public.current_account_status() returns account_status
-  language sql security definer stable set search_path = public as $$
-  select account_status from profiles where id = auth.uid();
-$$;
-
-create function public.current_municipality_id() returns uuid
-  language sql security definer stable set search_path = public as $$
-  select municipality_id from profiles where id = auth.uid();
-$$;
-
-create function public.current_candidate_id() returns uuid
-  language sql security definer stable set search_path = public as $$
-  select candidate_id from profiles where id = auth.uid();
-$$;
-
-create function public.is_internal_role() returns boolean
-  language sql security definer stable set search_path = public as $$
-  select public.current_role() in ('super_admin', 'dafinex_admin', 'internal_coordinator');
-$$;
-
-create function public.is_active() returns boolean
-  language sql security definer stable set search_path = public as $$
-  select public.current_account_status() = 'active';
-$$;
-
--- Keeps updated_date current on every row change.
-create function public.set_updated_date() returns trigger
-  language plpgsql as $$
-begin
-  new.updated_date = now();
-  return new;
-end;
-$$;
-
--- ============================================================================
 -- Tables
 -- Every table carries the standard fields: id, created_date, updated_date,
 -- created_by_id, created_by, is_sample.
+-- Tables come before helper functions/policies below: `language sql` functions
+-- are validated against the catalog at CREATE FUNCTION time, so anything
+-- referencing e.g. `profiles` must be created after that table exists.
 -- ============================================================================
 
 create table municipalities (
@@ -228,6 +189,50 @@ create table activity_log (
   created_by text,
   is_sample boolean not null default false
 );
+
+-- ============================================================================
+-- Helper functions (SECURITY DEFINER to avoid RLS recursion on profiles)
+-- Must come after the tables above — `language sql` function bodies are
+-- validated against the catalog at CREATE FUNCTION time.
+-- ============================================================================
+create function public.current_role() returns user_role
+  language sql security definer stable set search_path = public as $$
+  select role from profiles where id = auth.uid();
+$$;
+
+create function public.current_account_status() returns account_status
+  language sql security definer stable set search_path = public as $$
+  select account_status from profiles where id = auth.uid();
+$$;
+
+create function public.current_municipality_id() returns uuid
+  language sql security definer stable set search_path = public as $$
+  select municipality_id from profiles where id = auth.uid();
+$$;
+
+create function public.current_candidate_id() returns uuid
+  language sql security definer stable set search_path = public as $$
+  select candidate_id from profiles where id = auth.uid();
+$$;
+
+create function public.is_internal_role() returns boolean
+  language sql security definer stable set search_path = public as $$
+  select public.current_role() in ('super_admin', 'dafinex_admin', 'internal_coordinator');
+$$;
+
+create function public.is_active() returns boolean
+  language sql security definer stable set search_path = public as $$
+  select public.current_account_status() = 'active';
+$$;
+
+-- Keeps updated_date current on every row change.
+create function public.set_updated_date() returns trigger
+  language plpgsql as $$
+begin
+  new.updated_date = now();
+  return new;
+end;
+$$;
 
 -- ============================================================================
 -- updated_date triggers

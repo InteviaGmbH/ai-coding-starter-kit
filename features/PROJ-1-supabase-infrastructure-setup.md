@@ -85,6 +85,7 @@
 | Freischaltung/Ablehnung löst zusätzlich zur In-App-Benachrichtigung eine E-Mail aus (via Resend) | Nutzer merkt sonst evtl. nicht, dass sein Konto freigeschaltet wurde, da er sich ohne Freischaltung nicht sinnvoll einloggen kann | 2026-07-25 |
 | Alle Tabellen erhalten einheitliche Standard-Felder: id, created_date, updated_date, created_by_id, created_by, optional is_sample | Konsistente Nachvollziehbarkeit über alle Entitäten hinweg; is_sample erlaubt spätere Kennzeichnung von Demo-/Testdaten getrennt von echten Produktionsdaten | 2026-07-25 |
 | Korrektur: `assignment_status` wieder auf `proposed/accepted/active/completed` (kein `declined`); `proposal_status` stattdessen um `municipality_accepted`/`municipality_declined` erweitert | Ein Einsatz wird laut Kernprozess erst nach Gemeinde-Annahme erstellt — eine Ablehnung kann daher nie als Einsatz-Status auftreten, sondern gehört an den Kandidatenvorschlag (im Refine-Gespräch vom Nutzer korrigiert) | 2026-07-25 |
+| Tabellen-Definitionen stehen in der Migration vor den `language sql`-Helper-Funktionen | Postgres validiert `language sql`-Funktionsrümpfe gegen den Datenbank-Katalog bereits bei `CREATE FUNCTION`; eine Funktion, die auf `profiles` verweist, kann nicht vor `CREATE TABLE profiles` stehen (führte beim ersten Testlauf im Supabase-Projekt zu einem Fehler) | 2026-07-25 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
@@ -152,6 +153,7 @@ PROJ-1 hat keine eigene Benutzeroberfläche — es ist reine Infrastruktur (Date
 - ~~`assignment_status`-Enum enthält zusätzlich den Wert `declined`~~ → **Behoben per `/refine` (2026-07-25):** `declined` aus `assignment_status` entfernt (zurück auf `proposed/accepted/active/completed`), stattdessen `proposal_status` um `municipality_accepted`/`municipality_declined` erweitert — siehe Decision Log. Migration entsprechend angepasst.
 - Das reale Supabase-Projekt wurde **nicht** durch mich provisioniert — dafür fehlen mir Zugangsdaten/CLI-Zugriff. Die Migration muss im vorhandenen Projekt (SQL Editor) ausgeführt und `.env.local` befüllt werden (siehe `supabase/README.md`).
 - `npm run lint` ist aktuell nicht lauffähig — Next.js 16 hat den Befehl `next lint` entfernt (vorbestehendes Problem, nicht durch PROJ-1 verursacht).
+- ~~Migration schlug beim ersten Ausführungsversuch im Supabase SQL Editor fehl~~ → **Behoben (2026-07-25):** `relation "profiles" does not exist`, weil die Helper-Funktionen (`current_role()` etc., `language sql`) vor der `CREATE TABLE profiles`-Anweisung standen. Postgres validiert `language sql`-Funktionsrümpfe gegen den Katalog bereits bei `CREATE FUNCTION`, nicht erst beim Aufruf. Reihenfolge in der Migration korrigiert: Tabellen jetzt vor den Helper-Funktionen. Vom Nutzer beim Testen gegen das echte Projekt gefunden.
 
 ## QA Test Results
 _To be added by /qa_
