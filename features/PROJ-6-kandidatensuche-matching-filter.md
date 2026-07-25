@@ -1,6 +1,6 @@
 # PROJ-6: Kandidatensuche mit Matching-Filter
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-07-25
 **Last Updated:** 2026-07-25
 
@@ -103,7 +103,17 @@ Keine neuen Tabellen. Nutzt:
 - Keine neuen Pakete — nutzt bereits vorhandene shadcn-Komponenten (Table, Badge, Input, Button) aus PROJ-3/4/5.
 
 ## Implementation Notes (Frontend/Backend)
-_To be added by /frontend and /backend_
+
+**Umgesetzt:**
+- `/internal/requests/[id]/candidates`: Server Component, liest Filter aus URL-Suchparametern (Default: Fähigkeiten/Region der Anfrage beim ersten Aufruf), fragt `candidates` mit `.overlaps()` (Fähigkeiten, ODER-Verknüpfung) und `.ilike()` (Region, Teilstring) ab, blendet Kandidaten mit nicht-aktivem verknüpftem Konto aus (separate `profiles`-Abfrage)
+- `MatchFiltersBar` (Client): editierbare Fähigkeiten-/Region-Felder, „Filter anwenden" aktualisiert die URL (`router.push`) — Filter sind dadurch verlinkbar/teilbar, keine doppelte Filterlogik
+- `MatchingCandidatesTable`: reine Anzeige (Name verlinkt zur PROJ-4-Detailseite, Verfügbarkeit nur informativ), deaktivierter „Kandidat vorschlagen"-Button mit Tooltip-Hinweis auf PROJ-7
+- „Kandidaten suchen"-Button auf der Anfrage-Detailseite (PROJ-5) ergänzt
+- Kein Backend-Anteil über die Server-Component-Datenabfrage hinaus nötig — reine Lesefunktion, keine Server Actions/Mutationen, RLS aus PROJ-1/4/5 bereits ausreichend
+- `npm run build` grün, `npm test` weiterhin 25/25 (keine neuen Server Actions, daher keine neuen Unit-Tests); Smoke-Test gegen laufenden Dev-Server: geschützte Route ohne Login → 307-Redirect
+
+**Bewusste Vereinfachung:**
+- Region-Filter ist ein einfacher `ILIKE`-Teilstring-Vergleich; enthält der eingegebene Text SQL-`LIKE`-Sonderzeichen (`%`, `_`), wirken sie als Platzhalter statt als literale Zeichen. Kein Sicherheitsrisiko (kein SQL-Injection-Vektor, Supabase parametrisiert), nur ein kleiner Kuriosum bei der Textsuche — für den Pilot als vernachlässigbar eingestuft.
 
 ## QA Test Results
 _To be added by /qa_

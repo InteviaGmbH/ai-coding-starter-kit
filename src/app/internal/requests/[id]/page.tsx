@@ -1,8 +1,10 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 import { notFound } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { InternalRequestDetailActions } from "@/components/portal/internal-request-detail-actions"
 
 export const metadata: Metadata = { title: "Anfrage — Dafinex" }
@@ -40,7 +42,12 @@ export default async function InternalRequestDetailPage({
           <h1 className="text-2xl font-semibold">{request.title}</h1>
           <p className="text-muted-foreground">{municipality?.name ?? "Unbekannte Gemeinde"}</p>
         </div>
-        <InternalRequestDetailActions requestId={request.id} status={request.status} />
+        <div className="flex gap-2">
+          <Button asChild variant="outline">
+            <Link href={`/internal/requests/${request.id}/candidates`}>Kandidaten suchen</Link>
+          </Button>
+          <InternalRequestDetailActions requestId={request.id} status={request.status} />
+        </div>
       </div>
 
       <Card>
