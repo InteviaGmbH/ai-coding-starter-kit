@@ -121,7 +121,8 @@ Keine neue Tabelle. Nutzt ausschliesslich `notifications` (bestehend) sowie `pro
 ## QA Test Results
 
 **Tested:** 2026-07-26
-**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt — Migration `20260726130000` dort noch nicht angewendet)
+**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt)
+**Migrationsstatus:** `20260726130000` erfolgreich gegen das echte Supabase-Projekt ausgeführt (2026-07-26, bestätigt durch Nutzer)
 **Tester:** QA Engineer (AI)
 
 ### Automatisierte Tests
@@ -165,7 +166,7 @@ Das tatsächliche Erscheinungsbild der Glocke/Liste im Browser (Badge-Anzeige, P
 - **Bugs Found:** 1 total (1 Low, kein Sicherheitsrisiko)
 - **Security:** Keine Autorisierungslücke; ein während der Umsetzung selbst gefundener und behobener Entwurfsfehler (RLS-Subquery-Falle) zeigt, dass die in PROJ-8 gelernte Lektion („RLS-Subqueries laufen unter den Rechten des Aufrufers") inzwischen aktiv in die Architekturplanung einfliesst
 - **Production Ready:** **YES** — keine offenen Critical/High/Medium-Bugs
-- **Empfehlung:** Migration `20260726130000_notifications_new_request_broadcast.sql` muss vor dem ersten Nutzen dieser Funktion im echten Supabase-Projekt ausgeführt werden. Sobald Testkonten für alle Rollen existieren, das Glocken-Symbol einmal end-to-end visuell verifizieren; BUG-1 kann gesammelt mit den übrigen Low-Findings in einem späteren Aufräum-Pass behoben werden
+- **Empfehlung:** Migration bereits ausgeführt (siehe Migrationsstatus oben). Sobald Testkonten für alle Rollen existieren, das Glocken-Symbol einmal end-to-end visuell verifizieren; BUG-1 kann gesammelt mit den übrigen Low-Findings in einem späteren Aufräum-Pass behoben werden
 
 ## Deployment
 _To be added by /deploy_

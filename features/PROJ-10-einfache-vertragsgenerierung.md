@@ -120,7 +120,8 @@ Keine neue Tabelle. Nutzt `contracts` (Kern: `assignment_id`, `generated_documen
 ## QA Test Results
 
 **Tested:** 2026-07-26
-**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt — Migration `20260726120000` dort noch nicht angewendet)
+**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt)
+**Migrationsstatus:** `20260726120000` erfolgreich gegen das echte Supabase-Projekt ausgeführt (2026-07-26, bestätigt durch Nutzer)
 **Tester:** QA Engineer (AI)
 
 ### Automatisierte Tests
@@ -161,7 +162,7 @@ Der eigentliche Upload-/Signatur-Workflow im Browser konnte mangels aktivem `daf
 - **Bugs Found:** 1 total (1 Low, theoretische Race Condition, kein Sicherheitsrisiko)
 - **Security:** Keine Autorisierungslücke — die proaktive Architektur-Entscheidung (nur intern lädt hoch) hat die bei PROJ-8 gefundene Fehlerklasse von vornherein vermieden, statt sie nachträglich zu reparieren
 - **Production Ready:** **YES** — keine offenen Critical/High/Medium-Bugs
-- **Empfehlung:** Migration `20260726120000_contracts_internal_only.sql` muss vor dem ersten Nutzen dieser Funktion im echten Supabase-Projekt ausgeführt werden. Sobald ein `dafinex_admin`-Testkonto existiert, den vollständigen Vertrags-Lebenszyklus einmal end-to-end manuell verifizieren
+- **Empfehlung:** Migration bereits ausgeführt (siehe Migrationsstatus oben). Sobald ein `dafinex_admin`-Testkonto existiert, den vollständigen Vertrags-Lebenszyklus einmal end-to-end manuell verifizieren
 
 ## Deployment
 _To be added by /deploy_

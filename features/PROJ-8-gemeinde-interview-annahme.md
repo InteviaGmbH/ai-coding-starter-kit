@@ -115,7 +115,8 @@ Keine neue Tabelle. Nutzt `candidate_proposals` (Status-Übergang `approved` →
 ## QA Test Results
 
 **Tested:** 2026-07-26
-**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt — Migrationen `20260726090000`/`20260726100000` dort noch **nicht** angewendet)
+**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt)
+**Migrationsstatus:** `20260726090000`/`20260726100000` erfolgreich gegen das echte Supabase-Projekt ausgeführt (2026-07-26, bestätigt durch Nutzer)
 **Tester:** QA Engineer (AI)
 
 ### Automatisierte Tests
@@ -174,7 +175,7 @@ Der eigentliche Annahme-/Ablehnungs-Workflow im Browser konnte mangels aktivem `
 - **Bugs Found:** 2 total (1 Critical, 1 High) — beide noch während dieses QA-Durchgangs behoben, 0 offen
 - **Security:** Ursprünglicher Autorisierungs-/Integritätsfehler (BUG-2) durch Column-Lock-Trigger geschlossen; App-Oberfläche verhielt sich bereits korrekt (Rollen-Guards, Eigentumsprüfungen)
 - **Production Ready:** **YES** — keine offenen Critical/High/Medium-Bugs
-- **Empfehlung:** `npm test` (40/40) und `npm run build` nach den Fixes erneut grün bestätigt. Keine der drei PROJ-8-Migrationen (`20260726090000`, `20260726100000`) wurde bisher gegen das echte Supabase-Projekt ausgeführt — beide müssen vor dem ersten Login mit einer Gemeinde-Rolle in dieser Reihenfolge im SQL Editor laufen. Sobald ein `municipality`-Testkonto existiert, den vollständigen Annahme-/Ablehnungs-Workflow einmal end-to-end manuell verifizieren
+- **Empfehlung:** `npm test` (40/40) und `npm run build` nach den Fixes erneut grün bestätigt. Beide Migrationen bereits ausgeführt (siehe Migrationsstatus oben). Sobald ein `municipality`-Testkonto existiert, den vollständigen Annahme-/Ablehnungs-Workflow einmal end-to-end manuell verifizieren
 
 ## Deployment
 _To be added by /deploy_

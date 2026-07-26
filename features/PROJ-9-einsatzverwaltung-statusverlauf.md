@@ -122,7 +122,8 @@ Keine neue Tabelle. Nutzt `assignments` (Kern), `candidate_proposals`/`candidate
 ## QA Test Results
 
 **Tested:** 2026-07-26
-**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt — Migration `20260726110000` dort noch nicht angewendet)
+**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt)
+**Migrationsstatus:** `20260726110000` erfolgreich gegen das echte Supabase-Projekt ausgeführt (2026-07-26, bestätigt durch Nutzer)
 **Tester:** QA Engineer (AI)
 
 ### Automatisierte Tests
@@ -168,7 +169,7 @@ Der eigentliche Erstellungs-/Statusfortschritts-Workflow im Browser konnte mange
 - **Bugs Found:** 1 total (1 Low, theoretische Race Condition, kein Sicherheitsrisiko)
 - **Security:** Keine Autorisierungslücke — im Gegensatz zu PROJ-8 wurde hier kein neuer municipality-seitiger Schreibpfad eingeführt, daher auch kein analoges RLS-Insert-Problem; die alte, ungeschützte `assignments_update`-Policy aus PROJ-1 wurde geschlossen
 - **Production Ready:** **YES** — keine offenen Critical/High/Medium-Bugs
-- **Empfehlung:** Migration `20260726110000_assignments_internal_only_update.sql` muss vor dem ersten Nutzen dieser Funktion im echten Supabase-Projekt ausgeführt werden. Sobald ein `dafinex_admin`-Testkonto existiert, den vollständigen Einsatz-Lebenszyklus einmal end-to-end manuell verifizieren
+- **Empfehlung:** Migration bereits ausgeführt (siehe Migrationsstatus oben). Sobald ein `dafinex_admin`-Testkonto existiert, den vollständigen Einsatz-Lebenszyklus einmal end-to-end manuell verifizieren
 
 ## Deployment
 _To be added by /deploy_
