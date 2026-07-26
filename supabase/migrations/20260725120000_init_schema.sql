@@ -432,13 +432,20 @@ create policy "personnel_requests_delete_own_when_created" on personnel_requests
   );
 
 -- --- candidate_proposals ---------------------------------------------------------------
+-- Municipalities only ever see proposals once they're internally 'approved'
+-- (or later) — never 'proposed' (still under internal review) or 'rejected'
+-- (internally declined). The candidate branch is intentionally unfiltered by
+-- status (candidate-facing visibility is out of scope, see PROJ-8 spec).
 create policy "candidate_proposals_select" on candidate_proposals for select
   using (
     public.is_active()
     and (
       public.is_internal_role()
       or candidate_id = public.current_candidate_id()
-      or request_id in (select id from personnel_requests where municipality_id = public.current_municipality_id())
+      or (
+        request_id in (select id from personnel_requests where municipality_id = public.current_municipality_id())
+        and status not in ('proposed', 'rejected')
+      )
     )
   );
 
@@ -447,6 +454,20 @@ create policy "candidate_proposals_insert_internal" on candidate_proposals for i
 
 create policy "candidate_proposals_update_internal" on candidate_proposals for update
   using (public.is_internal_role());
+
+-- PROJ-8: the owning municipality may move an 'approved' proposal to
+-- municipality_accepted/municipality_declined — nothing else.
+create policy "candidate_proposals_update_municipality_decision" on candidate_proposals for update
+  using (
+    public.is_active()
+    and public.current_role() = 'municipality'
+    and status = 'approved'
+    and request_id in (select id from personnel_requests where municipality_id = public.current_municipality_id())
+  )
+  with check (
+    status in ('municipality_accepted', 'municipality_declined')
+    and request_id in (select id from personnel_requests where municipality_id = public.current_municipality_id())
+  );
 
 create policy "candidate_proposals_delete_internal" on candidate_proposals for delete
   using (public.is_internal_role());

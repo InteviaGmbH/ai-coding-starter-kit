@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 import { notFound } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,22 +31,34 @@ export default async function MunicipalityRequestDetailPage({
 
   const editable = request.status === "created"
 
+  const { count: proposalCount } = await supabase
+    .from("candidate_proposals")
+    .select("id", { count: "exact", head: true })
+    .eq("request_id", request.id)
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <h1 className="text-2xl font-semibold">{request.title}</h1>
-        <PersonnelRequestFormDialog
-          mode="edit"
-          requestId={request.id}
-          defaultValues={{
-            title: request.title,
-            requiredSkills: (request.required_skills ?? []).join(", "),
-            region: request.region ?? "",
-            startDate: request.start_date,
-            endDate: request.end_date ?? "",
-          }}
-          trigger={<Button disabled={!editable}>Bearbeiten</Button>}
-        />
+        <div className="flex gap-2">
+          <Button asChild variant="outline">
+            <Link href={`/municipality/requests/${request.id}/proposals`}>
+              Vorschläge ({proposalCount ?? 0})
+            </Link>
+          </Button>
+          <PersonnelRequestFormDialog
+            mode="edit"
+            requestId={request.id}
+            defaultValues={{
+              title: request.title,
+              requiredSkills: (request.required_skills ?? []).join(", "),
+              region: request.region ?? "",
+              startDate: request.start_date,
+              endDate: request.end_date ?? "",
+            }}
+            trigger={<Button disabled={!editable}>Bearbeiten</Button>}
+          />
+        </div>
       </div>
 
       <Card>

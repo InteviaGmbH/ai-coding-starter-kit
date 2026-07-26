@@ -30,5 +30,9 @@ After that, this first admin can invite/promote further internal staff through t
 
 If you already successfully ran it before the 2026-07-25 QA fix round (BUG-1–4: role-escalation on signup, self-assignment to any municipality/candidate, missing `account_status` check, candidates unable to self-register), run only the incremental patch instead: `migrations/20260725130000_fix_rls_bugs_1_4.sql`. It's safe to re-run — every `DROP` uses `IF EXISTS` and every function uses `CREATE OR REPLACE`.
 
+If your database already has the BUG-1–4 fixes but predates the features below, run their incremental patches in order (all safe to re-run):
+- `migrations/20260725140000_municipality_request_policies.sql` (PROJ-5 — lets a municipality edit/withdraw its own unreviewed requests)
+- `migrations/20260726090000_municipality_proposal_decision.sql` (PROJ-8 — lets a municipality accept/decline an internally-approved candidate proposal, and hides proposals still under internal review or internally rejected)
+
 ## Future migrations
 Add new files to `migrations/` named `<timestamp>_<description>.sql` and run them the same way. Once the Supabase CLI is set up locally, `supabase db push` can apply them directly instead of the SQL Editor.

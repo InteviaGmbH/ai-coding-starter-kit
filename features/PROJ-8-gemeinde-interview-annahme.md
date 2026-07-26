@@ -97,7 +97,16 @@ Keine neue Tabelle. Nutzt `candidate_proposals` (Status-Übergang `approved` →
 - Keine neuen Pakete — nutzt bereits vorhandene shadcn-Komponenten (Table, Badge, AlertDialog, Button) aus PROJ-3/4/5/6/7.
 
 ## Implementation Notes (Frontend/Backend)
-_To be added by /frontend and /backend_
+
+**Umgesetzt:**
+- Neue Migration `supabase/migrations/20260726090000_municipality_proposal_decision.sql` (+ gleiche Policy-Änderungen bereits in `20260725120000_init_schema.sql` für Neuinstallationen ergänzt): `candidate_proposals_select` schränkt den Gemeinde-Zweig auf `status not in ('proposed', 'rejected')` ein; neue Policy `candidate_proposals_update_municipality_decision` erlaubt der eigenen Gemeinde ausschliesslich den Übergang `approved` → `municipality_accepted`/`municipality_declined`
+- `supabase/README.md` um Hinweis auf die neue Migration ergänzt (inkl. der bisher dort fehlenden PROJ-5-Migration, die schon existierte aber nicht dokumentiert war)
+- `src/app/municipality/requests/[id]/proposals/actions.ts`: `acceptProposal`/`declineProposal` — prüfen Rolle, Eigentum an der Anfrage (über `personnel_requests.municipality_id`) und Status „freigegeben", aktualisieren, prüfen betroffene Zeilenanzahl statt nur `error`, schreiben `activity_log`-Eintrag und benachrichtigen den vorschlagenden internen Nutzer (`proposed_by_id`)
+- `src/app/municipality/requests/[id]/proposals/page.tsx` + `src/components/portal/municipality-proposals-table.tsx`: Vorschlagsliste (Gemeinde-Sicht) mit Kandidat, Fähigkeiten, Region, Verfügbarkeit, Status-Badge, Annehmen/Ablehnen (nur bei „freigegeben"); verlässt sich auf die RLS-Statusfilterung, keine zusätzliche Filterung nötig
+- `src/app/municipality/requests/[id]/page.tsx`: neuer Button „Vorschläge (N)" mit Live-Anzahl
+- Internes `ProposalsTable` (PROJ-7) zeigt die Gemeinde-Entscheidung automatisch mit, da die Status-Labels für `municipality_accepted`/`municipality_declined` dort bereits vorsorglich angelegt waren — keine Änderung nötig
+- 4 neue Vitest-Tests für `municipality/requests/[id]/proposals/actions.ts` (Berechtigung, fremde Gemeinde, falscher Status, erfolgreiche Annahme inkl. Aktivitätseintrag + Benachrichtigung, Ablehnung)
+- `npm test` (40/40), `npm run build` grün; Smoke-Test gegen laufenden Dev-Server: neue geschützte Route `/municipality/requests/[id]/proposals` → 307-Redirect ohne Login
 
 ## QA Test Results
 _To be added by /qa_
