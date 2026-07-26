@@ -1,7 +1,8 @@
 # PROJ-9: Einsatzverwaltung mit Statusverlauf
 
-## Status: Planned
+## Status: Approved
 **Created:** 2026-07-26
+**Last Updated:** 2026-07-26 (QA: 1 Low gefunden, theoretische Race Condition ohne Sicherheitsrisiko — production-ready)
 
 ## Dependencies
 - Requires: PROJ-8 (Gemeinde-Interview & Annahme) — nur Vorschläge mit Status „von Gemeinde angenommen" sind die Grundlage für einen Einsatz
@@ -119,7 +120,55 @@ Keine neue Tabelle. Nutzt `assignments` (Kern), `candidate_proposals`/`candidate
 - `npm test` (48/48), `npm run build` grün; Smoke-Test gegen laufenden Dev-Server: alle drei neuen geschützten Routen → 307-Redirect ohne Login
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-07-26
+**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt — Migration `20260726110000` dort noch nicht angewendet)
+**Tester:** QA Engineer (AI)
+
+### Automatisierte Tests
+- `npm test`: 48/48 grün (8 neue Tests für `internal/assignments/actions.ts`)
+- `npm run build`: erfolgreich
+- E2E (`tests/PROJ-9-einsatzverwaltung-statusverlauf.spec.ts`): 6/6 grün (Chromium + Mobile Safari, alle drei neuen Routen → Redirect zu `/login`)
+
+### Coverage-Lücke (dokumentiert, kein Bug)
+Der eigentliche Erstellungs-/Statusfortschritts-Workflow im Browser konnte mangels aktivem `dafinex_admin`-Testkonto und echter Vorschlagsdaten nicht per E2E gegen die echte Anwendung getestet werden (gleiche Einschränkung wie PROJ-2–8). Nach der bei PROJ-8 gemachten Erfahrung wurde diese QA gezielt mit einer detaillierten RLS-Analyse aller neuen/berührten Schreibpfade durchgeführt (nicht nur Server-Action-Code-Review) — siehe Security Audit.
+
+### Acceptance Criteria Status
+- [x] „Einsatz anlegen" nur bei „von Gemeinde angenommen", Start/Enddatum vorausgefüllt aus der Anfrage (Vitest + Code-Review)
+- [x] Validierungsfehler bei fehlendem Start-/zu frühem Enddatum (Vitest)
+- [x] Kein zweiter „Einsatz anlegen"-Button, sobald ein Einsatz existiert — zeigt stattdessen „Einsatz ansehen" (Code-Review: `proposals-table.tsx`)
+- [x] Interne Einsatzliste mit Status/Kandidat/Gemeinde/Zeitraum (Code-Review)
+- [x] Statusfortschritt zur jeweils nächsten Stufe inkl. Aktivitätseintrag (Vitest)
+- [x] Überspringen/Zurückspringen serverseitig verhindert (Vitest: feste `STATUS_ORDER`-Indexprüfung)
+- [x] „Abgeschlossen" ist Endzustand, Aktion deaktiviert (Vitest + Code-Review: Button `disabled` bei `isFinal`)
+- [x] Gemeinde sieht nur eigene Einsätze, rein lesend (Code-Review: `assignments_select`-RLS unverändert, keine Aktions-UI in `/municipality/assignments`)
+- [x] Leere Liste zeigt Hinweistext (Code-Review, beide Tabellen)
+- [x] `municipality`/`candidate` können Status nicht per direktem Aufruf ändern (Vitest: `requireInternalRole()`; RLS: `assignments_update_internal`/`assignments_insert_internal` nur `is_internal_role()`)
+
+### Security Audit Results (Red Team)
+- [x] Unauthentifizierter Zugriff → Redirect auf allen drei neuen Routen (E2E bestätigt)
+- [x] `assignments_update_internal` (neu) hat keine Gemeinde-Ausnahme mehr — im Gegensatz zur alten `assignments_update`-Policy aus PROJ-1, die keinerlei `with check` hatte; verifiziert, dass die neue Policy ausschliesslich `is_internal_role()` prüft
+- [x] `activity_log`/`assignments`-Inserts/Updates laufen ausschliesslich über bereits bestehende `_internal`-Policies — anders als bei PROJ-8 gibt es hier keinen neuen municipality-seitigen Schreibpfad, der eine zusätzliche RLS-Lücke hätte öffnen können (gezielt aus der PROJ-8-Erfahrung geprüft)
+- [x] Statuswechsel-Server-Action erlaubt ausschliesslich `aktuellerIndex + 1`, kein beliebiger Zielwert (Vitest, kein Enum-Wert wird vom Client übernommen)
+- [ ] BUG-1 (Low): `createAssignment` prüft Duplikate über eine vorherige SELECT-Abfrage, nicht über eine DB-Unique-Constraint auf `assignments.proposal_id` — bei zwei nahezu gleichzeitigen Klicks auf „Einsatz anlegen" für denselben Vorschlag könnten theoretisch zwei Einsätze entstehen (analoge, bereits in PROJ-7 akzeptierte Absicherung auf Anwendungsebene statt DB-Ebene)
+
+### Bugs Found
+
+#### BUG-1: Theoretische Race Condition bei gleichzeitiger Einsatzerstellung für denselben Vorschlag
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Zwei interne Nutzer öffnen gleichzeitig denselben „von Gemeinde angenommenen" Vorschlag und klicken nahezu zeitgleich auf „Einsatz anlegen"
+  2. Beide Anfragen bestehen die Duplikatsprüfung (SELECT vor INSERT), da noch kein Einsatz existiert
+  3. Beide Inserts gelingen — zwei Einsätze für denselben Vorschlag
+  4. Sehr geringe Eintrittswahrscheinlichkeit bei einem 2-3-köpfigen Pilotteam; kein Sicherheitsrisiko, nur ein Datenintegritäts-Kuriosum
+- **Priority:** Nice to have — könnte mit einer `unique`-Constraint auf `assignments.proposal_id` behoben werden, falls es in der Praxis je auftritt
+
+### Summary
+- **Acceptance Criteria:** Alle 10 Kriterien bestätigt (Server-Action-Logik vollständig per Vitest abgedeckt, UI-/RLS-Verhalten per gezielter Code-Review)
+- **Bugs Found:** 1 total (1 Low, theoretische Race Condition, kein Sicherheitsrisiko)
+- **Security:** Keine Autorisierungslücke — im Gegensatz zu PROJ-8 wurde hier kein neuer municipality-seitiger Schreibpfad eingeführt, daher auch kein analoges RLS-Insert-Problem; die alte, ungeschützte `assignments_update`-Policy aus PROJ-1 wurde geschlossen
+- **Production Ready:** **YES** — keine offenen Critical/High/Medium-Bugs
+- **Empfehlung:** Migration `20260726110000_assignments_internal_only_update.sql` muss vor dem ersten Nutzen dieser Funktion im echten Supabase-Projekt ausgeführt werden. Sobald ein `dafinex_admin`-Testkonto existiert, den vollständigen Einsatz-Lebenszyklus einmal end-to-end manuell verifizieren
 
 ## Deployment
 _To be added by /deploy_
