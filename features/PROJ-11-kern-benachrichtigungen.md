@@ -1,7 +1,8 @@
 # PROJ-11: Kern-Benachrichtigungen
 
-## Status: Planned
+## Status: Approved
 **Created:** 2026-07-26
+**Last Updated:** 2026-07-26 (QA: 1 Low gefunden, kosmetische Badge-Ungenauigkeit ohne Sicherheitsrisiko — production-ready)
 
 ## Dependencies
 - Requires: PROJ-2 (Auth & Portal-Grundgerüst) — `notifications`-Tabelle, Portal-Shell
@@ -118,7 +119,53 @@ Keine neue Tabelle. Nutzt ausschliesslich `notifications` (bestehend) sowie `pro
 - `npm test` (61/61), `npm run build` grün
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-07-26
+**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt — Migration `20260726130000` dort noch nicht angewendet)
+**Tester:** QA Engineer (AI)
+
+### Automatisierte Tests
+- `npm test`: 61/61 grün (6 neue/erweiterte Tests für die drei neuen Trigger + `notifications/actions.ts`)
+- `npm run build`: erfolgreich
+- Kein neuer E2E-Redirect-Test nötig: PROJ-11 fügt keine neue Route hinzu, die Glocke lebt ausschliesslich innerhalb der drei bereits per PROJ-2-E2E-Tests abgesicherten Portal-Layouts
+
+### Coverage-Lücke (dokumentiert, kein Bug)
+Das tatsächliche Erscheinungsbild der Glocke/Liste im Browser (Badge-Anzeige, Popover-Öffnen, „als gelesen markieren"-Klick) konnte mangels aktivem Testkonto nicht visuell verifiziert werden (gleiche Einschränkung wie PROJ-2–10). Die Trigger-Logik selbst ist vollständig per Vitest abgedeckt.
+
+### Acceptance Criteria Status
+- [x] Glocke zeigt Anzahl ungelesener Benachrichtigungen (Code-Review: `NotificationBell`, siehe aber BUG-1 zur Genauigkeit)
+- [x] Klick öffnet Popover-Liste mit Nachricht/Datum/Status (Code-Review)
+- [x] Einzelnes „als gelesen markieren" aktualisiert Status + Zähler (Vitest für die Server Action; Code-Review für `router.refresh()`-Aktualisierung)
+- [x] Leere Liste zeigt Hinweistext (Code-Review: `NotificationBell` early return)
+- [x] „Neue Anfrage" erreicht alle aktiven internen Nutzer (Vitest: Broadcast-Insert mit korrektem Empfänger)
+- [x] „Vorschlag freigegeben" erreicht die Gemeinde (Vitest)
+- [x] „Einsatz aktiv" erreicht die Gemeinde (Vitest, inkl. Test dass andere Statuswechsel NICHT benachrichtigen)
+- [x] „Vertrag bereit" (PROJ-10) unverändert, jetzt sichtbar (Code-Review: keine Logikänderung, nur neue UI)
+- [x] Fremde Benachrichtigung kann nicht als gelesen markiert werden (Vitest: `.eq("recipient_id", actor.id)` + RLS `notifications_update_own`)
+
+### Security Audit Results (Red Team)
+- [x] `markNotificationRead`/`markAllNotificationsRead` sind auf die eigene `recipient_id` beschränkt (Vitest + bestehende RLS)
+- [x] Broadcast-Policy (`notifications_insert_municipality_new_request`) korrekt auf `type = 'new_request'` und aktive interne Empfänger beschränkt — verifiziert per Lesen der Migration, dass kein beliebiger Empfänger/Typ möglich ist
+- [x] Admin-Client wird ausschliesslich für den Lese-Lookup verwendet, nie für den sicherheitsrelevanten Schreibvorgang selbst — der tatsächliche `INSERT` bleibt RLS-geprüft
+- [x] Gefundener und korrigierter Entwurfsfehler (rohe `profiles`-Subquery hätte den Broadcast immer stillschweigend blockiert) — siehe Implementation Notes; während der Umsetzung selbst behoben, kein QA-Fund
+- [ ] BUG-1 (Low): Die ungelesene Anzahl im Glocken-Badge wird aus den zuletzt geladenen 10 Benachrichtigungen berechnet (`notifications.filter(n => !n.isRead).length`), nicht aus einer echten Gesamtzahl — bei mehr als 10 ungelesenen Benachrichtigungen zeigt das Badge höchstens 10 an, auch wenn mehr ungelesen sind
+
+### Bugs Found
+
+#### BUG-1: Ungelesene-Anzahl im Badge kann bei mehr als 10 Benachrichtigungen zu niedrig sein
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Ein Nutzer sammelt mehr als 10 ungelesene Benachrichtigungen an, ohne je die Liste zu öffnen
+  2. Das Badge zeigt maximal 10 an (Anzahl der geladenen Zeilen), nicht die tatsächliche Gesamtzahl
+  3. Bei der geringen erwarteten Nutzungsfrequenz im 2-3-köpfigen Pilotteam mit einer Gemeinde sehr unwahrscheinlich, kein Sicherheitsrisiko, rein kosmetische Ungenauigkeit
+- **Priority:** Nice to have — liesse sich mit einer separaten `count`-Abfrage (`is_read = false`, ohne `limit`) für den Badge-Wert beheben, unabhängig von der auf 10 begrenzten Listenanzeige
+
+### Summary
+- **Acceptance Criteria:** Alle 9 Kriterien bestätigt (1 mit dokumentierter Genauigkeits-Einschränkung, siehe BUG-1)
+- **Bugs Found:** 1 total (1 Low, kein Sicherheitsrisiko)
+- **Security:** Keine Autorisierungslücke; ein während der Umsetzung selbst gefundener und behobener Entwurfsfehler (RLS-Subquery-Falle) zeigt, dass die in PROJ-8 gelernte Lektion („RLS-Subqueries laufen unter den Rechten des Aufrufers") inzwischen aktiv in die Architekturplanung einfliesst
+- **Production Ready:** **YES** — keine offenen Critical/High/Medium-Bugs
+- **Empfehlung:** Migration `20260726130000_notifications_new_request_broadcast.sql` muss vor dem ersten Nutzen dieser Funktion im echten Supabase-Projekt ausgeführt werden. Sobald Testkonten für alle Rollen existieren, das Glocken-Symbol einmal end-to-end visuell verifizieren; BUG-1 kann gesammelt mit den übrigen Low-Findings in einem späteren Aufräum-Pass behoben werden
 
 ## Deployment
 _To be added by /deploy_
