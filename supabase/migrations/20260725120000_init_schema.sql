@@ -549,25 +549,12 @@ create policy "contracts_select" on contracts for select
 create policy "contracts_insert_internal" on contracts for insert
   with check (public.is_internal_role());
 
--- Signed document upload: internal roles, or the municipality/candidate tied to the assignment.
-create policy "contracts_update" on contracts for update
-  using (
-    public.is_active()
-    and (
-      public.is_internal_role()
-      or assignment_id in (
-        select a.id from assignments a
-        join candidate_proposals cp on cp.id = a.proposal_id
-        where cp.candidate_id = public.current_candidate_id()
-      )
-      or assignment_id in (
-        select a.id from assignments a
-        join candidate_proposals cp on cp.id = a.proposal_id
-        join personnel_requests pr on pr.id = cp.request_id
-        where pr.municipality_id = public.current_municipality_id()
-      )
-    )
-  );
+-- PROJ-10: both the generated and signed documents are uploaded internally
+-- only (municipality/candidate can only read/download via contracts_select) —
+-- avoids the with-check-less write gap already fixed for candidate_proposals
+-- (PROJ-8) and assignments (PROJ-9).
+create policy "contracts_update_internal" on contracts for update
+  using (public.is_internal_role());
 
 create policy "contracts_delete_internal" on contracts for delete
   using (public.is_internal_role());
@@ -664,22 +651,8 @@ create policy "contracts_documents_select" on storage.objects for select
     )
   );
 
+-- PROJ-10: only internal roles upload contract documents (both generated and
+-- signed) — municipality/candidate keep read-only access via
+-- contracts_documents_select.
 create policy "contracts_documents_insert" on storage.objects for insert
-  with check (
-    bucket_id = 'contracts'
-    and public.is_active()
-    and (
-      public.is_internal_role()
-      or (storage.foldername(name))[1] in (
-        select a.id::text from assignments a
-        join candidate_proposals cp on cp.id = a.proposal_id
-        where cp.candidate_id = public.current_candidate_id()
-      )
-      or (storage.foldername(name))[1] in (
-        select a.id::text from assignments a
-        join candidate_proposals cp on cp.id = a.proposal_id
-        join personnel_requests pr on pr.id = cp.request_id
-        where pr.municipality_id = public.current_municipality_id()
-      )
-    )
-  );
+  with check (bucket_id = 'contracts' and public.is_internal_role());

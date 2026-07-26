@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import {
   Table,
   TableBody,
@@ -44,7 +45,11 @@ export function MunicipalityAssignmentsTable({
       <TableBody>
         {assignments.map((a) => (
           <TableRow key={a.id}>
-            <TableCell className="font-medium">{a.candidateName}</TableCell>
+            <TableCell className="font-medium">
+              <Link href={`/municipality/assignments/${a.id}`} className="hover:underline">
+                {a.candidateName}
+              </Link>
+            </TableCell>
             <TableCell>
               {a.startDate}
               {a.endDate ? ` – ${a.endDate}` : ""}

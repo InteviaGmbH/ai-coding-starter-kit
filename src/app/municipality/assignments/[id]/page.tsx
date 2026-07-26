@@ -4,12 +4,11 @@ import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { assignmentStatusLabel } from "@/components/portal/assignments-table"
-import { AssignmentStatusActions } from "@/components/portal/assignment-status-actions"
-import { ContractCard } from "@/components/portal/contract-card"
+import { MunicipalityContractCard } from "@/components/portal/municipality-contract-card"
 
 export const metadata: Metadata = { title: "Einsatz — Dafinex" }
 
-export default async function InternalAssignmentDetailPage({
+export default async function MunicipalityAssignmentDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
@@ -17,10 +16,12 @@ export default async function InternalAssignmentDetailPage({
   const { id } = await params
   const supabase = await createClient()
 
+  // RLS (assignments_select) already scopes this to the caller's own
+  // municipality.
   const { data: assignment } = await supabase
     .from("assignments")
     .select(
-      "id, status, start_date, end_date, proposal:candidate_proposals(candidate:candidates(first_name, last_name), request:personnel_requests(title, municipality:municipalities(name)))",
+      "id, status, start_date, end_date, proposal:candidate_proposals(candidate:candidates(first_name, last_name))",
     )
     .eq("id", id)
     .single()
@@ -31,14 +32,11 @@ export default async function InternalAssignmentDetailPage({
 
   const proposal = Array.isArray(assignment.proposal) ? assignment.proposal[0] : assignment.proposal
   const candidate = proposal ? (Array.isArray(proposal.candidate) ? proposal.candidate[0] : proposal.candidate) : null
-  const request = proposal ? (Array.isArray(proposal.request) ? proposal.request[0] : proposal.request) : null
-  const municipality = request ? (Array.isArray(request.municipality) ? request.municipality[0] : request.municipality) : null
-
   const status = assignment.status as "proposed" | "accepted" | "active" | "completed"
 
   const { data: contract } = await supabase
     .from("contracts")
-    .select("id, status, generated_document_path, signed_document_path")
+    .select("status, generated_document_path, signed_document_path")
     .eq("assignment_id", id)
     .maybeSingle()
 
@@ -59,16 +57,10 @@ export default async function InternalAssignmentDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">
-            {candidate ? `${candidate.first_name} ${candidate.last_name}` : "Unbekannt"}
-          </h1>
-          <p className="text-muted-foreground">
-            {municipality?.name ?? "Unbekannte Gemeinde"} — {request?.title ?? "Unbekannte Anfrage"}
-          </p>
-        </div>
-        <AssignmentStatusActions assignmentId={assignment.id} status={status} />
+      <div>
+        <h1 className="text-2xl font-semibold">
+          {candidate ? `${candidate.first_name} ${candidate.last_name}` : "Unbekannt"}
+        </h1>
       </div>
 
       <Card>
@@ -90,10 +82,8 @@ export default async function InternalAssignmentDetailPage({
         </CardContent>
       </Card>
 
-      <ContractCard
-        assignmentId={assignment.id}
-        assignmentStatus={status}
-        contract={contract ? { id: contract.id, status: contract.status as "generated" | "signed" } : null}
+      <MunicipalityContractCard
+        contract={contract ? { status: contract.status as "generated" | "signed" } : null}
         generatedDownloadUrl={generatedDownloadUrl}
         signedDownloadUrl={signedDownloadUrl}
       />

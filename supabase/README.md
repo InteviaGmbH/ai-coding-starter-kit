@@ -35,6 +35,7 @@ If your database already has the BUG-1–4 fixes but predates the features below
 - `migrations/20260726090000_municipality_proposal_decision.sql` (PROJ-8 — lets a municipality accept/decline an internally-approved candidate proposal, and hides proposals still under internal review or internally rejected)
 - `migrations/20260726100000_proposal_decision_fixes.sql` (PROJ-8 QA fixes — locks every candidate_proposals column but `status` against non-internal actors, and lets a municipality's accept/decline write the activity_log entry + notification the feature depends on)
 - `migrations/20260726110000_assignments_internal_only_update.sql` (PROJ-9 — assignment status progression is internal-only; replaces the PROJ-1 `assignments_update` policy that had no `with check` at all)
+- `migrations/20260726120000_contracts_internal_only.sql` (PROJ-10 — both contract document uploads are internal-only; replaces the PROJ-1 `contracts_update`/`contracts_documents_insert` policies that let the municipality/candidate write with no `with check` at all)
 
 ## Future migrations
 Add new files to `migrations/` named `<timestamp>_<description>.sql` and run them the same way. Once the Supabase CLI is set up locally, `supabase db push` can apply them directly instead of the SQL Editor.

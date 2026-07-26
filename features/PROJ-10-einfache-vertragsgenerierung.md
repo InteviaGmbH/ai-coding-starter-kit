@@ -105,7 +105,16 @@ Keine neue Tabelle. Nutzt `contracts` (Kern: `assignment_id`, `generated_documen
 - Keine neuen Pakete — nutzt bereits vorhandene shadcn-Komponenten (Card, Input, Button, Alert) aus PROJ-4/9 und den bereits konfigurierten Supabase-Storage-Client.
 
 ## Implementation Notes (Frontend/Backend)
-_To be added by /frontend and /backend_
+
+**Umgesetzt:**
+- Neue Migration `supabase/migrations/20260726120000_contracts_internal_only.sql` (+ gleiche Änderungen bereits in `20260725120000_init_schema.sql` für Neuinstallationen): `contracts_update` (bisher ohne `with check`) ersetzt durch `contracts_update_internal`; `contracts_documents_insert` (Storage) auf `is_internal_role()` beschränkt, Gemeinde-/Kandidat-Zweige entfernt
+- `src/app/internal/contracts/actions.ts`: `createContract` (nur ab Einsatzstatus „akzeptiert"+, Duplikatsprüfung, `activity_log`-Eintrag, „Vertrag bereit"-Benachrichtigung an `personnel_requests.created_by_id`), `setSignedDocument` (nur bei Status „generiert", `activity_log`-Eintrag); beide prüfen betroffene Zeilenanzahl statt nur `error`
+- `src/components/portal/contract-card.tsx`: Upload-UI für intern (Datei direkt zum `contracts`-Storage-Bucket, danach Server Action zum Persistieren des Pfads — gleiches Muster wie PROJ-4s `CandidateDocumentCard`), zustandsabhängig (kein Vertrag/Einsatz zu früh, kein Vertrag, generiert, unterschrieben)
+- `src/components/portal/municipality-contract-card.tsx`: rein lesende Variante (keine Upload-Inputs, auch nicht UI-seitig, zusätzlich zur RLS-Sperre)
+- `/internal/assignments/[id]/page.tsx` um `ContractCard` erweitert (Signed-URL-Erzeugung für beide Dokumente)
+- Neue Route `/municipality/assignments/[id]/page.tsx` (bisher gab es in PROJ-9 nur die Liste) inkl. `MunicipalityContractCard`; `MunicipalityAssignmentsTable`-Zeilen verlinken jetzt dorthin
+- 7 neue Vitest-Tests für `internal/contracts/actions.ts` (Berechtigung ×2, Einsatzstatus zu früh, Duplikat, erfolgreiche Erstellung inkl. Aktivitätseintrag + Benachrichtigung, erfolgreiches Setzen der unterschriebenen Version, Ablehnung bei bereits unterschrieben)
+- `npm test` (55/55), `npm run build` grün; Smoke-Test gegen laufenden Dev-Server: neue geschützte Route `/municipality/assignments/[id]` → 307-Redirect ohne Login
 
 ## QA Test Results
 _To be added by /qa_
