@@ -1,7 +1,8 @@
 # PROJ-10: Einfache Vertragsgenerierung
 
-## Status: Planned
+## Status: Approved
 **Created:** 2026-07-26
+**Last Updated:** 2026-07-26 (QA: 1 Low gefunden, theoretische Race Condition ohne Sicherheitsrisiko — production-ready)
 
 ## Dependencies
 - Requires: PROJ-9 (Einsatzverwaltung mit Statusverlauf) — ein Vertrag gehört zu einem Einsatz, der mindestens „akzeptiert" sein muss
@@ -117,7 +118,50 @@ Keine neue Tabelle. Nutzt `contracts` (Kern: `assignment_id`, `generated_documen
 - `npm test` (55/55), `npm run build` grün; Smoke-Test gegen laufenden Dev-Server: neue geschützte Route `/municipality/assignments/[id]` → 307-Redirect ohne Login
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-07-26
+**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt — Migration `20260726120000` dort noch nicht angewendet)
+**Tester:** QA Engineer (AI)
+
+### Automatisierte Tests
+- `npm test`: 55/55 grün (7 neue Tests für `internal/contracts/actions.ts`)
+- `npm run build`: erfolgreich
+- E2E (`tests/PROJ-10-einfache-vertragsgenerierung.spec.ts`): 2/2 grün (Chromium + Mobile Safari, nicht authentifizierter Zugriff → Redirect zu `/login`)
+
+### Coverage-Lücke (dokumentiert, kein Bug)
+Der eigentliche Upload-/Signatur-Workflow im Browser konnte mangels aktivem `dafinex_admin`-Testkonto und echter Einsatzdaten nicht per E2E gegen die echte Anwendung getestet werden (gleiche Einschränkung wie PROJ-2–9). Nach der PROJ-8-Erfahrung wurde diese QA erneut mit besonderem Fokus auf jeden neuen/berührten Schreibpfad durchgeführt.
+
+### Acceptance Criteria Status
+- [x] Vertragserstellung nur ab Einsatzstatus „akzeptiert"+, inkl. Aktivitätseintrag und „Vertrag bereit"-Benachrichtigung (Vitest)
+- [x] Upload bei Status „vorgeschlagen" nicht verfügbar, mit Hinweistext (Code-Review: `ContractCard`)
+- [x] Kein zweiter Vertrag pro Einsatz (Vitest: Duplikatsprüfung)
+- [x] Upload der unterschriebenen Version wechselt Status zu „unterschrieben" inkl. Aktivitätseintrag (Vitest)
+- [x] Kein weiterer Upload der unterschriebenen Version nach „unterschrieben" (Vitest + Code-Review: Upload-Input nur bei Status „generiert" gerendert)
+- [x] Interne Detailseite zeigt Vertragsstatus + beide Downloads (Code-Review: `ContractCard`, Signed URLs serverseitig erzeugt)
+- [x] Gemeinde-Detailseite zeigt Vertragsstatus + Downloads, keine Upload-Möglichkeit (Code-Review: `MunicipalityContractCard` enthält keinerlei Upload-UI, unabhängig von der RLS-Sperre)
+- [x] `municipality`/`candidate` können nicht hochladen/Status ändern — weder Tabellen- (`contracts_update_internal`) noch Storage-Ebene (`contracts_documents_insert` jetzt `is_internal_role()`-only) (Vitest + Code-Review der Migration)
+- [x] Fremder Einsatz für Gemeinde nicht einsehbar (Code-Review: `assignments_select`/`contracts_select`-RLS unverändert, bereits in PROJ-9 geprüft)
+
+### Security Audit Results (Red Team)
+- [x] Unauthentifizierter Zugriff → Redirect (E2E bestätigt)
+- [x] Alle Schreibpfade dieser Feature (`contracts` insert/update, `contracts`-Storage-Bucket insert, `activity_log`/`notifications` insert) laufen ausschliesslich über bereits bestehende `_internal`-Policies — kein neuer municipality-/candidate-seitiger Schreibpfad wurde eingeführt, anders als bei PROJ-8 gibt es daher keine Möglichkeit für eine analoge RLS-Insert-Lücke
+- [x] `contracts_update`/`contracts_documents_insert` aus PROJ-1 (beide ohne wirksame Einschränkung für Gemeinde/Kandidat) wurden durch rein interne Policies ersetzt — verifiziert per Lesen der Migration, dass keine Gemeinde-/Kandidat-Zweige mehr vorhanden sind
+- [x] `MunicipalityContractCard` enthält keine Upload-Komponenten — selbst falls RLS versehentlich zu offen wäre, gäbe es keinen UI-Pfad, der einen Schreibversuch auslöst
+- [ ] BUG-1 (Low): `createContract`s Duplikatsprüfung ist ein SELECT-vor-INSERT auf Anwendungsebene, keine DB-Unique-Constraint auf `contracts.assignment_id` — gleiches, bereits bei PROJ-7/9 akzeptiertes Muster
+
+### Bugs Found
+
+#### BUG-1: Theoretische Race Condition bei gleichzeitiger Vertragserstellung für denselben Einsatz
+- **Severity:** Low
+- **Steps to Reproduce:** Analog zu PROJ-9 BUG-1 — zwei interne Nutzer laden nahezu gleichzeitig ein generiertes Dokument für denselben Einsatz hoch, beide bestehen die Duplikatsprüfung, zwei Verträge entstehen. Sehr geringe Eintrittswahrscheinlichkeit im 2-3-köpfigen Pilotteam, kein Sicherheitsrisiko.
+- **Priority:** Nice to have — könnte mit einer `unique`-Constraint auf `contracts.assignment_id` behoben werden, falls es in der Praxis je auftritt
+
+### Summary
+- **Acceptance Criteria:** Alle 9 Kriterien bestätigt
+- **Bugs Found:** 1 total (1 Low, theoretische Race Condition, kein Sicherheitsrisiko)
+- **Security:** Keine Autorisierungslücke — die proaktive Architektur-Entscheidung (nur intern lädt hoch) hat die bei PROJ-8 gefundene Fehlerklasse von vornherein vermieden, statt sie nachträglich zu reparieren
+- **Production Ready:** **YES** — keine offenen Critical/High/Medium-Bugs
+- **Empfehlung:** Migration `20260726120000_contracts_internal_only.sql` muss vor dem ersten Nutzen dieser Funktion im echten Supabase-Projekt ausgeführt werden. Sobald ein `dafinex_admin`-Testkonto existiert, den vollständigen Vertrags-Lebenszyklus einmal end-to-end manuell verifizieren
 
 ## Deployment
 _To be added by /deploy_
