@@ -4,12 +4,20 @@
 -- Ausführung). Läuft in einer Transaktion — bei einem Fehler wird alles
 -- zurückgerollt, nichts wird teilweise gelöscht.
 --
+-- WICHTIG: Dieses Skript löscht NUR Datenbank-Zeilen. Die hochgeladenen
+-- Test-Dokumente (Storage-Buckets `candidate-documents`/`contracts`) sind
+-- NICHT enthalten — Supabase erlaubt kein direktes `delete from
+-- storage.objects` (Fehler: "Direct deletion from storage tables is not
+-- allowed. Use the Storage API instead."). Dafür zuerst
+-- `docs/e2e-test-data-storage-lookup.sql` ausführen (bevor du dieses Skript
+-- laufen lässt — danach sind die Kandidaten-/Einsatz-IDs weg!) und
+-- anschliessend `docs/e2e-test-data-storage-cleanup.md` folgen.
+--
 -- Reihenfolge ist zwingend wegen FK-Constraints (on delete restrict):
 -- contracts -> assignments -> candidate_proposals -> personnel_requests ->
 -- candidates -> profiles/auth.users -> municipalities. notifications und
 -- activity_log referenzieren nur profiles (teils on delete cascade) und
--- können früh gelöscht werden. storage.objects hat keine FK-Beziehung und
--- wird am Ende separat bereinigt.
+-- können früh gelöscht werden.
 
 begin;
 
@@ -69,13 +77,8 @@ delete from auth.users where email like 'e2e-%@dafinex-test.ch';
 -- 8. Gemeinden (erst jetzt, da personnel_requests/profiles bereits weg sind)
 delete from municipalities where id in (select id from tmp_test_municipalities);
 
--- 9. Hochgeladene Test-Dokumente aus den Storage-Buckets
-delete from storage.objects
-where bucket_id = 'candidate-documents'
-  and (storage.foldername(name))[1] in (select id::text from tmp_test_candidates);
-
-delete from storage.objects
-where bucket_id = 'contracts'
-  and (storage.foldername(name))[1] in (select id::text from tmp_test_assignments);
-
 commit;
+
+-- Storage-Bereinigung (candidate-documents/contracts) ist NICHT Teil dieses
+-- Skripts — siehe docs/e2e-test-data-storage-lookup.sql und
+-- docs/e2e-test-data-storage-cleanup.md.
