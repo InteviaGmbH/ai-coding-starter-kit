@@ -14,12 +14,17 @@ const activeAdminProfile = {
 
 const PROPOSAL_ID = "77777777-7777-4777-a777-777777777777"
 const ASSIGNMENT_ID = "88888888-8888-4888-a888-888888888888"
+const MUNICIPALITY_USER_ID = "22222222-2222-4222-a222-222222222222"
 
 interface MockOpts {
   proposal?: { id: string; status: string } | null
   existingAssignment?: boolean
   insertError?: { message: string } | null
-  assignment?: { id: string; status: string } | null
+  assignment?: {
+    id: string
+    status: string
+    proposal?: { request: { title: string; created_by_id: string | null } | null } | null
+  } | null
   updateError?: { message: string } | null
 }
 
@@ -28,10 +33,18 @@ function mockSupabaseClient(opts?: MockOpts) {
     opts?.proposal === undefined ? { id: PROPOSAL_ID, status: "municipality_accepted" } : opts.proposal
   const existingAssignment = opts?.existingAssignment ?? false
   const insertError = opts?.insertError ?? null
-  const assignment = opts?.assignment === undefined ? { id: ASSIGNMENT_ID, status: "proposed" } : opts.assignment
+  const assignment =
+    opts?.assignment === undefined
+      ? {
+          id: ASSIGNMENT_ID,
+          status: "proposed",
+          proposal: { request: { title: "Sozialarbeiter:in", created_by_id: MUNICIPALITY_USER_ID } },
+        }
+      : opts.assignment
   const updateError = opts?.updateError ?? null
 
   const activityLogInsert = vi.fn(async () => ({ error: null }))
+  const notificationsInsert = vi.fn(async () => ({ error: null }))
 
   const candidateProposals = {
     select: vi.fn(() => ({
@@ -73,6 +86,7 @@ function mockSupabaseClient(opts?: MockOpts) {
       if (table === "candidate_proposals") return candidateProposals
       if (table === "assignments") return assignments
       if (table === "activity_log") return { insert: activityLogInsert }
+      if (table === "notifications") return { insert: notificationsInsert }
       throw new Error(`unexpected table: ${table}`)
     }),
   }
@@ -161,8 +175,14 @@ describe("advanceAssignmentStatus", () => {
     expect(result).toEqual({ success: false, error: "Keine Berechtigung." })
   })
 
-  it("advances to the next status in order and logs activity", async () => {
-    const client = mockSupabaseClient({ assignment: { id: ASSIGNMENT_ID, status: "accepted" } })
+  it("advances to the next status in order, logs activity, and notifies the request creator when becoming active", async () => {
+    const client = mockSupabaseClient({
+      assignment: {
+        id: ASSIGNMENT_ID,
+        status: "accepted",
+        proposal: { request: { title: "Sozialarbeiter:in", created_by_id: MUNICIPALITY_USER_ID } },
+      },
+    })
     const { advanceAssignmentStatus } = await importActions(client)
 
     const result = await advanceAssignmentStatus(ASSIGNMENT_ID)
@@ -171,6 +191,23 @@ describe("advanceAssignmentStatus", () => {
     expect(client.from("activity_log").insert).toHaveBeenCalledWith(
       expect.objectContaining({ action: "active" }),
     )
+    expect(client.from("notifications").insert).toHaveBeenCalledWith(
+      expect.objectContaining({ recipient_id: MUNICIPALITY_USER_ID, type: "assignment_active" }),
+    )
+  })
+
+  it("does not notify anyone when advancing to a non-active status", async () => {
+    const client = mockSupabaseClient({
+      assignment: {
+        id: ASSIGNMENT_ID,
+        status: "proposed",
+        proposal: { request: { title: "Sozialarbeiter:in", created_by_id: MUNICIPALITY_USER_ID } },
+      },
+    })
+    const { advanceAssignmentStatus } = await importActions(client)
+
+    await advanceAssignmentStatus(ASSIGNMENT_ID)
+    expect(client.from("notifications").insert).not.toHaveBeenCalled()
   })
 
   it("rejects advancing a completed assignment", async () => {

@@ -225,6 +225,20 @@ create function public.is_active() returns boolean
   select public.current_account_status() = 'active';
 $$;
 
+-- PROJ-11: lets a policy check "is this recipient an active internal user"
+-- without the caller needing SELECT on other people's profiles rows (a raw
+-- subquery against `profiles` would run under the caller's own RLS, which
+-- for a non-internal actor only ever exposes their own row).
+create function public.is_active_internal_profile(profile_id uuid) returns boolean
+  language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from profiles
+    where id = profile_id
+    and role in ('super_admin', 'dafinex_admin', 'internal_coordinator')
+    and account_status = 'active'
+  );
+$$;
+
 -- Keeps updated_date current on every row change.
 create function public.set_updated_date() returns trigger
   language plpgsql as $$
@@ -579,6 +593,16 @@ create policy "notifications_insert_municipality_proposal_decision" on notificat
       where pr.municipality_id = public.current_municipality_id()
       and cp.proposed_by_id is not null
     )
+  );
+
+-- PROJ-11: lets a municipality broadcast a "new request" notification to
+-- every currently-active internal user when it creates a personnel_request.
+create policy "notifications_insert_municipality_new_request" on notifications for insert
+  with check (
+    public.is_active()
+    and public.current_role() = 'municipality'
+    and type = 'new_request'
+    and public.is_active_internal_profile(recipient_id)
   );
 
 create policy "notifications_update_own" on notifications for update

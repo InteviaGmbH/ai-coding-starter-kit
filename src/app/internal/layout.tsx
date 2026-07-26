@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { getCurrentProfile, getPortalPathForProfile, INTERNAL_ROLES } from "@/lib/auth/get-current-profile"
 import { PortalShell, type PortalNavItem } from "@/components/portal/portal-shell"
+import { getRecentNotifications } from "@/lib/notifications/get-recent-notifications"
 
 const navItems: PortalNavItem[] = [
   { label: "Dashboard", href: "/internal/dashboard" },
@@ -22,11 +23,14 @@ export default async function InternalLayout({ children }: { children: React.Rea
     redirect(getPortalPathForProfile(profile))
   }
 
+  const notifications = await getRecentNotifications(profile.id)
+
   return (
     <PortalShell
       portalTitle="Interne Verwaltung"
       navItems={navItems}
       userLabel={profile.fullName ?? profile.email}
+      notifications={notifications}
     >
       {children}
     </PortalShell>

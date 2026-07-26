@@ -3,6 +3,7 @@
 import { z } from "zod"
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { getCurrentProfile } from "@/lib/auth/get-current-profile"
 
 interface ActionResult {
@@ -81,6 +82,27 @@ export async function createPersonnelRequest(
 
   if (error || !data) {
     return { success: false, error: "Anfrage konnte nicht angelegt werden." }
+  }
+
+  // Admin client is used read-only here to find active internal recipients —
+  // a municipality actor has no RLS access to other profiles rows. The
+  // actual notification insert below still goes through the normal,
+  // RLS-checked client (notifications_insert_municipality_new_request).
+  const admin = createAdminClient()
+  const { data: internalProfiles } = await admin
+    .from("profiles")
+    .select("id")
+    .in("role", ["super_admin", "dafinex_admin", "internal_coordinator"])
+    .eq("account_status", "active")
+
+  if (internalProfiles && internalProfiles.length > 0) {
+    await supabase.from("notifications").insert(
+      internalProfiles.map((p) => ({
+        recipient_id: p.id,
+        type: "new_request",
+        message: `Neue Anfrage „${parsed.data.title}" wurde erstellt.`,
+      })),
+    )
   }
 
   revalidatePath("/municipality/requests")

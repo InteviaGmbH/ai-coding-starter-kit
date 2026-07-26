@@ -117,7 +117,9 @@ export async function advanceAssignmentStatus(assignmentId: string): Promise<Act
 
   const { data: assignment } = await supabase
     .from("assignments")
-    .select("id, status")
+    .select(
+      "id, status, proposal:candidate_proposals(request:personnel_requests(title, created_by_id))",
+    )
     .eq("id", assignmentId)
     .single()
 
@@ -147,6 +149,22 @@ export async function advanceAssignmentStatus(assignmentId: string): Promise<Act
     entity_id: assignmentId,
     action: nextStatus,
   })
+
+  if (nextStatus === "active") {
+    const proposal = Array.isArray(assignment.proposal) ? assignment.proposal[0] : assignment.proposal
+    const request = proposal
+      ? Array.isArray(proposal.request)
+        ? proposal.request[0]
+        : proposal.request
+      : null
+    if (request?.created_by_id) {
+      await supabase.from("notifications").insert({
+        recipient_id: request.created_by_id,
+        type: "assignment_active",
+        message: `Ihr Einsatz für „${request.title}" ist jetzt aktiv.`,
+      })
+    }
+  }
 
   revalidatePath("/internal/assignments")
   revalidatePath(`/internal/assignments/${assignmentId}`)

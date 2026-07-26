@@ -57,11 +57,28 @@ function mockSupabaseClient(opts?: {
     })),
   }
 
+  const notificationsInsert = vi.fn(async () => ({ error: null }))
+
   return {
     from: vi.fn((table: string) => {
       if (table === "personnel_requests") return personnelRequests
+      if (table === "notifications") return { insert: notificationsInsert }
       throw new Error(`unexpected table: ${table}`)
     }),
+  }
+}
+
+const INTERNAL_PROFILE_ID = "33333333-3333-4333-a333-333333333333"
+
+function mockAdminClient() {
+  return {
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        in: vi.fn(() => ({
+          eq: vi.fn(async () => ({ data: [{ id: INTERNAL_PROFILE_ID }], error: null })),
+        })),
+      })),
+    })),
   }
 }
 
@@ -82,12 +99,13 @@ describe("municipality requests server actions", () => {
     expect(result).toEqual({ success: false, error: "Keine Berechtigung." })
   })
 
-  it("creates a request with municipality_id from the actor's own profile", async () => {
+  it("creates a request with municipality_id from the actor's own profile and notifies active internal staff", async () => {
     vi.doMock("@/lib/auth/get-current-profile", () => ({
       getCurrentProfile: async () => activeMunicipalityProfile,
     }))
     const client = mockSupabaseClient()
     vi.doMock("@/lib/supabase/server", () => ({ createClient: async () => client }))
+    vi.doMock("@/lib/supabase/admin", () => ({ createAdminClient: () => mockAdminClient() }))
 
     const { createPersonnelRequest } = await import("./actions")
     const result = await createPersonnelRequest({ title: "Sozialarbeiter:in", startDate: "2026-08-01" })
@@ -96,6 +114,9 @@ describe("municipality requests server actions", () => {
     expect(client.from("personnel_requests").insert).toHaveBeenCalledWith(
       expect.objectContaining({ municipality_id: activeMunicipalityProfile.municipalityId })
     )
+    expect(client.from("notifications").insert).toHaveBeenCalledWith([
+      expect.objectContaining({ recipient_id: INTERNAL_PROFILE_ID, type: "new_request" }),
+    ])
   })
 
   it("rejects end date before start date", async () => {

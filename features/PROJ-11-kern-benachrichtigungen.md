@@ -101,7 +101,21 @@ Keine neue Tabelle. Nutzt ausschliesslich `notifications` (bestehend) sowie `pro
 - Keine neuen Pakete — nutzt bereits vorhandene shadcn-Komponenten (Popover, Badge, Button) und `lucide-react` (bereits für das Menü-Symbol in `PortalShell` im Einsatz) für das Glocken-Icon.
 
 ## Implementation Notes (Frontend/Backend)
-_To be added by /frontend and /backend_
+
+**Umgesetzt:**
+- Neue Migration `supabase/migrations/20260726130000_notifications_new_request_broadcast.sql` (+ gleiche Ergänzungen bereits in `20260725120000_init_schema.sql` für Neuinstallationen): neue `SECURITY DEFINER`-Hilfsfunktion `is_active_internal_profile(profile_id)` und darauf aufbauend die Policy `notifications_insert_municipality_new_request`
+- **Während der Umsetzung gefundener und sofort korrigierter Entwurfsfehler:** eine rohe Subquery gegen `profiles` in der neuen Policy hätte unter den RLS-Rechten des Gemeinde-Akteurs ausgewertet — der hat aber nur Lesezugriff auf die eigene Profilzeile (`profiles_select_own_or_internal`), die Subquery hätte also immer leer und der Broadcast-Insert immer fehlgeschlagen. Gelöst mit einer `SECURITY DEFINER`-Funktion, analog zu den bestehenden `current_*`/`is_*`-Helfern
+- `src/app/notifications/actions.ts`: `markNotificationRead`/`markAllNotificationsRead`, nutzen die bereits bestehende `notifications_update_own`-Policy, keine neue RLS nötig
+- `src/components/portal/notification-bell.tsx`: Glocke mit Badge (ungelesene Anzahl) + Popover-Liste (letzte 10, „als gelesen markieren" pro Zeile + „alle als gelesen markieren")
+- `src/lib/notifications/get-recent-notifications.ts`: gemeinsamer Helper, von allen drei Portal-Layouts (`internal`/`municipality`/`candidate`) genutzt
+- `src/components/portal/portal-shell.tsx` um `notifications`-Prop erweitert, rendert `NotificationBell` im Header
+- Drei neue Trigger in bestehenden Server Actions:
+  - `municipality/requests/actions.ts` (`createPersonnelRequest`): Broadcast „Neue Anfrage" an alle aktiven internen Nutzer — Empfänger-Ermittlung über den Admin-Client (`service_role`, nur lesend), der eigentliche Insert läuft weiterhin über den normalen, RLS-geprüften Client
+  - `internal/requests/[id]/proposals/actions.ts` (`reviewProposal`): Benachrichtigung „Neuer Kandidatenvorschlag verfügbar" an `personnel_requests.created_by_id`, wenn `decision === "approved"`
+  - `internal/assignments/actions.ts` (`advanceAssignmentStatus`): Benachrichtigung „Einsatz aktiv" an `personnel_requests.created_by_id`, wenn `nextStatus === "active"`
+  - „Vertrag bereit" (PROJ-10) unverändert übernommen, nur jetzt über die neue UI sichtbar
+- 6 neue/erweiterte Vitest-Tests (3 neue in `notifications/actions.test.ts`, je 1 erweiterter/neuer Test in den drei bestehenden Action-Testdateien für die neuen Trigger)
+- `npm test` (61/61), `npm run build` grün
 
 ## QA Test Results
 _To be added by /qa_

@@ -15,9 +15,10 @@ const activeAdminProfile = {
 const REQUEST_ID = "44444444-4444-4444-a444-444444444444"
 const CANDIDATE_ID = "66666666-6666-4666-a666-666666666666"
 const PROPOSAL_ID = "77777777-7777-4777-a777-777777777777"
+const MUNICIPALITY_USER_ID = "22222222-2222-4222-a222-222222222222"
 
 interface MockOpts {
-  request?: { id: string; status: string } | null
+  request?: { id: string; status: string; title?: string; created_by_id?: string | null } | null
   candidate?: { id: string; profile_id: string | null } | null
   candidateProfileStatus?: string
   existingOpenProposal?: boolean
@@ -29,7 +30,9 @@ interface MockOpts {
 
 function mockSupabaseClient(opts?: MockOpts) {
   const request =
-    opts?.request === undefined ? { id: REQUEST_ID, status: "reviewed" } : opts.request
+    opts?.request === undefined
+      ? { id: REQUEST_ID, status: "reviewed", title: "Sozialarbeiter:in", created_by_id: MUNICIPALITY_USER_ID }
+      : opts.request
   const candidate =
     opts?.candidate === undefined ? { id: CANDIDATE_ID, profile_id: null } : opts.candidate
   const candidateProfileStatus = opts?.candidateProfileStatus ?? "active"
@@ -43,6 +46,7 @@ function mockSupabaseClient(opts?: MockOpts) {
   const deleteError = opts?.deleteError ?? null
 
   const activityLogInsert = vi.fn(async () => ({ error: null }))
+  const notificationsInsert = vi.fn(async () => ({ error: null }))
 
   const personnelRequests = {
     select: vi.fn(() => ({
@@ -112,6 +116,7 @@ function mockSupabaseClient(opts?: MockOpts) {
       if (table === "profiles") return profiles
       if (table === "candidate_proposals") return candidateProposals
       if (table === "activity_log") return { insert: activityLogInsert }
+      if (table === "notifications") return { insert: notificationsInsert }
       throw new Error(`unexpected table: ${table}`)
     }),
   }
@@ -208,7 +213,7 @@ describe("reviewProposal", () => {
     expect(result).toEqual({ success: false, error: "Keine Berechtigung." })
   })
 
-  it("approves an open proposal and logs activity", async () => {
+  it("approves an open proposal, logs activity, and notifies the request creator", async () => {
     const client = mockSupabaseClient()
     const { reviewProposal } = await importActions(client)
 
@@ -218,6 +223,17 @@ describe("reviewProposal", () => {
     expect(client.from("activity_log").insert).toHaveBeenCalledWith(
       expect.objectContaining({ action: "approved" }),
     )
+    expect(client.from("notifications").insert).toHaveBeenCalledWith(
+      expect.objectContaining({ recipient_id: MUNICIPALITY_USER_ID, type: "proposal_approved" }),
+    )
+  })
+
+  it("does not notify anyone when a proposal is rejected", async () => {
+    const client = mockSupabaseClient()
+    const { reviewProposal } = await importActions(client)
+
+    await reviewProposal(PROPOSAL_ID, "rejected")
+    expect(client.from("notifications").insert).not.toHaveBeenCalled()
   })
 
   it("rejects deciding on a proposal that was already decided", async () => {

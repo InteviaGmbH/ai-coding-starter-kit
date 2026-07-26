@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { LogoutButton } from "@/components/auth/logout-button"
+import { NotificationBell, type NotificationItem } from "@/components/portal/notification-bell"
 
 export interface PortalNavItem {
   label: string
@@ -18,6 +19,7 @@ interface PortalShellProps {
   portalTitle: string
   navItems: PortalNavItem[]
   userLabel: string
+  notifications: NotificationItem[]
   children: React.ReactNode
 }
 
@@ -45,7 +47,13 @@ function NavLinks({ navItems, pathname }: { navItems: PortalNavItem[]; pathname:
   )
 }
 
-export function PortalShell({ portalTitle, navItems, userLabel, children }: PortalShellProps) {
+export function PortalShell({
+  portalTitle,
+  navItems,
+  userLabel,
+  notifications,
+  children,
+}: PortalShellProps) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -86,6 +94,7 @@ export function PortalShell({ portalTitle, navItems, userLabel, children }: Port
           <span className="hidden text-sm font-medium md:inline" />
           <div className="flex items-center gap-3">
             <span className="hidden text-sm text-muted-foreground sm:inline">{userLabel}</span>
+            <NotificationBell notifications={notifications} />
             <LogoutButton variant="ghost" />
           </div>
         </header>

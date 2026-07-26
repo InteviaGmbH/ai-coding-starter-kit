@@ -158,6 +158,22 @@ export async function reviewProposal(
     action: decision,
   })
 
+  if (decision === "approved") {
+    const { data: request } = await supabase
+      .from("personnel_requests")
+      .select("title, created_by_id")
+      .eq("id", proposal.request_id)
+      .single()
+
+    if (request?.created_by_id) {
+      await supabase.from("notifications").insert({
+        recipient_id: request.created_by_id,
+        type: "proposal_approved",
+        message: `Ein neuer Kandidatenvorschlag für „${request.title}" ist verfügbar.`,
+      })
+    }
+  }
+
   revalidatePath(`/internal/requests/${proposal.request_id}/proposals`)
   revalidatePath(`/internal/requests/${proposal.request_id}`)
   return { success: true }
