@@ -2,7 +2,7 @@
 
 ## Status: Approved
 **Created:** 2026-07-26
-**Last Updated:** 2026-07-26 (QA: keine Bugs gefunden — production-ready)
+**Last Updated:** 2026-07-26 (Post-Approval-Regression BUG-1 gefunden und behoben durch echten E2E-Testlauf — production-ready)
 
 ## Dependencies
 - Requires: PROJ-5, PROJ-7, PROJ-8, PROJ-9, PROJ-10 — schreiben bereits Einträge in `activity_log` (Anfrage geprüft, Vorschlag vorgeschlagen/freigegeben/abgelehnt/von Gemeinde entschieden, Einsatz angelegt/Statuswechsel, Vertrag generiert/unterschrieben)
@@ -134,15 +134,28 @@ Die befüllte Liste selbst (Akteur-Namen, Sortierung, Empty State im Browser) ko
 - [x] Akteur-Namen und Ereignis-Texte werden ausschliesslich über React-JSX gerendert (kein `dangerouslySetInnerHTML`) — kein XSS-Vektor, auch nicht über einen manipulierten `full_name`
 - [x] Profile-Join für Akteur-Namen: interne Rolle hat laut `profiles_select_own_or_internal` ohnehin vollen Lesezugriff auf alle Profile — keine zusätzliche Datenexposition durch diesen Join
 
-### Bugs Found
+### Bugs Found (ursprünglicher Durchgang)
 Keine.
 
+### Post-Approval-Regression (gefunden 2026-07-26 durch einen vollständigen manuellen E2E-Testlauf mit echten Accounts, PROJ-1–12)
+
+#### BUG-1: Seite zeigt immer „Noch keine Aktivitäten." trotz vorhandener Einträge — ✅ FIXED (2026-07-26)
+- **Severity:** High
+- **Steps to Reproduce:**
+  1. `activity_log` enthält reale Einträge (bestätigt: 46 Zeilen über einen direkten Admin-Client-Zugriff)
+  2. `/internal/activity` als eingeloggter `dafinex_admin`/`super_admin` aufrufen
+  3. Seite zeigt immer den Leerzustand „Noch keine Aktivitäten.", unabhängig von der tatsächlichen Datenlage
+  4. **Root Cause:** `activity_log` hat zwei Fremdschlüssel zu `profiles` (`actor_id` und `created_by_id`). Der ursprüngliche Code nutzte implizites PostgREST-Embedding (`actor:profiles(full_name, email)`), das bei mehr als einer möglichen Relation mit einem `PGRST201`-Fehler ("Could not embed because more than one relationship was found") abgelehnt wird. Der Code destrukturierte nur `{ data: entries }` ohne `error`-Prüfung — der Fehler blieb unsichtbar, `entries` war `null`, `(entries ?? [])` ergab eine leere Liste
+  5. **Warum nicht schon in der ursprünglichen QA gefunden:** Es gab noch kein `dafinex_admin`-Testkonto mit echten Daten — dieselbe, seit PROJ-2 dokumentierte Coverage-Lücke. Der Code-Review erschien plausibel (Join-Syntax syntaktisch korrekt), der PostgREST-spezifische Mehrdeutigkeits-Fehler bei zwei Fremdschlüsseln zur selben Tabelle war ohne echten Datenabruf nicht erkennbar
+- **Fix:** Embedding entfernt, stattdessen eine separate Lookup-Query auf `profiles` (identisches, bereits in PROJ-7 für `proposedByName` etabliertes Muster) — keine RLS-/Migrationsänderung nötig, reiner Anwendungscode-Fix in `src/app/internal/activity/page.tsx`
+- **Priority:** Fixed
+
 ### Summary
-- **Acceptance Criteria:** Alle 6 Kriterien bestätigt
-- **Bugs Found:** 0
-- **Security:** Keine Autorisierungslücke; reine Lesefunktion auf Basis bereits bestehender, unveränderter RLS
+- **Acceptance Criteria:** Alle 6 Kriterien bestätigt; Kriterium „Akteur/Beschreibung/Zeitpunkt sichtbar" war durch BUG-1 in der echten Anwendung vollständig verletzt (keine Zeile war je sichtbar), jetzt bestätigt
+- **Bugs Found:** 1 total (1 High) — gefunden und behoben durch einen echten E2E-Testlauf, nicht durch die ursprüngliche Code-Review-QA
+- **Security:** Keine Autorisierungslücke; reiner Anwendungsfehler (PostgREST-Embedding-Mehrdeutigkeit), kein RLS-Problem
 - **Production Ready:** **YES** — keine offenen Critical/High/Medium/Low-Bugs
-- **Empfehlung:** Sobald ein `dafinex_admin`-Testkonto mit echten `activity_log`-Daten existiert, die Liste einmal visuell end-to-end verifizieren (Sortierung, Akteur-Namen, Leerzustand)
+- **Empfehlung:** `npm test` (75/75) und `npm run build` nach dem Fix weiterhin grün. Dieser Fund bestätigt erneut (wie schon PROJ-8 BUG-3 im selben Testlauf): reine Code-Review-QA ohne echte Testkonten und echte Daten kann Laufzeitfehler wie PostgREST-Embedding-Mehrdeutigkeiten nicht zuverlässig aufdecken
 
 ## Deployment
 _To be added by /deploy_
