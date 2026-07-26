@@ -33,6 +33,7 @@ If you already successfully ran it before the 2026-07-25 QA fix round (BUG-1–4
 If your database already has the BUG-1–4 fixes but predates the features below, run their incremental patches in order (all safe to re-run):
 - `migrations/20260725140000_municipality_request_policies.sql` (PROJ-5 — lets a municipality edit/withdraw its own unreviewed requests)
 - `migrations/20260726090000_municipality_proposal_decision.sql` (PROJ-8 — lets a municipality accept/decline an internally-approved candidate proposal, and hides proposals still under internal review or internally rejected)
+- `migrations/20260726100000_proposal_decision_fixes.sql` (PROJ-8 QA fixes — locks every candidate_proposals column but `status` against non-internal actors, and lets a municipality's accept/decline write the activity_log entry + notification the feature depends on)
 
 ## Future migrations
 Add new files to `migrations/` named `<timestamp>_<description>.sql` and run them the same way. Once the Supabase CLI is set up locally, `supabase db push` can apply them directly instead of the SQL Editor.

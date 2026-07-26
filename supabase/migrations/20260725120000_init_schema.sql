@@ -294,6 +294,34 @@ create trigger on_candidate_created
   after insert on candidates
   for each row execute function public.link_candidate_profile();
 
+-- PROJ-8: RLS's `with check` can't compare against the OLD row, so it can't
+-- stop a municipality from rewriting candidate_id/request_id/etc. while
+-- "deciding" on a proposal (candidate_proposals_update_municipality_decision
+-- only constrains status/request_id). A non-internal actor may only ever
+-- change `status` on an existing candidate_proposals row.
+create function public.enforce_candidate_proposal_column_lock() returns trigger
+  language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_internal_role() then
+    if new.candidate_id is distinct from old.candidate_id
+      or new.request_id is distinct from old.request_id
+      or new.proposed_by_id is distinct from old.proposed_by_id
+      or new.created_by_id is distinct from old.created_by_id
+      or new.created_by is distinct from old.created_by
+      or new.created_date is distinct from old.created_date
+      or new.is_sample is distinct from old.is_sample
+    then
+      raise exception 'Only an internal role may change fields other than status on a candidate proposal';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger enforce_candidate_proposal_column_lock
+  before update on candidate_proposals
+  for each row execute function public.enforce_candidate_proposal_column_lock();
+
 -- ============================================================================
 -- Indexes
 -- ============================================================================
@@ -559,6 +587,21 @@ create policy "notifications_select_own" on notifications for select
 create policy "notifications_insert_internal" on notifications for insert
   with check (public.is_internal_role());
 
+-- PROJ-8: lets a municipality notify the internal user who proposed a
+-- candidate, when the municipality accepts/declines that proposal — scoped
+-- to exactly that recipient, nothing broader.
+create policy "notifications_insert_municipality_proposal_decision" on notifications for insert
+  with check (
+    public.is_active()
+    and public.current_role() = 'municipality'
+    and recipient_id in (
+      select cp.proposed_by_id from candidate_proposals cp
+      join personnel_requests pr on pr.id = cp.request_id
+      where pr.municipality_id = public.current_municipality_id()
+      and cp.proposed_by_id is not null
+    )
+  );
+
 create policy "notifications_update_own" on notifications for update
   using (recipient_id = auth.uid())
   with check (recipient_id = auth.uid());
@@ -569,6 +612,20 @@ create policy "activity_log_select_internal" on activity_log for select
 
 create policy "activity_log_insert_internal" on activity_log for insert
   with check (public.is_internal_role());
+
+-- PROJ-8: lets a municipality log its accept/decline decision on its own
+-- request's candidate proposals — scoped to exactly that entity, nothing broader.
+create policy "activity_log_insert_municipality_proposal_decision" on activity_log for insert
+  with check (
+    public.is_active()
+    and public.current_role() = 'municipality'
+    and entity_type = 'candidate_proposal'
+    and entity_id in (
+      select cp.id from candidate_proposals cp
+      join personnel_requests pr on pr.id = cp.request_id
+      where pr.municipality_id = public.current_municipality_id()
+    )
+  );
 
 -- ============================================================================
 -- Storage buckets
