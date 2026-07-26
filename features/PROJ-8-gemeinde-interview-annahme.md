@@ -62,12 +62,39 @@
 ### Technical Decisions
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
+|----------|-----------|------|
+| Neue Migration erforderlich (kein Neubau der Tabelle) — ändert nur RLS auf dem bestehenden `candidate_proposals` | Zwei Lücken im bisherigen Schema: (1) Gemeinden hatten keine UPDATE-Berechtigung, (2) die bestehende SELECT-Policy filtert nicht nach Status und hätte auch „vorgeschlagen"/intern „abgelehnt" offengelegt | 2026-07-26 |
+| `candidate_proposals_select` wird ersetzt: der Gemeinde-Zweig bekommt zusätzlich `and status not in ('proposed', 'rejected')`; der Kandidat-Zweig (`candidate_id = current_candidate_id()`) bleibt unverändert | Trennt bewusst die beiden Sichtbarkeits-Fragen — Kandidaten-Sichtbarkeit ist nicht Teil dieser Spec (siehe Out of Scope) und wird nicht mit-verschärft, um keine unbeabsichtigte Verhaltensänderung ausserhalb des Scopes einzuführen | 2026-07-26 |
+| Neue Policy `candidate_proposals_update_municipality_decision`: `using` verlangt `status = 'approved'` + eigene Gemeinde, `with check` erlaubt nur den Zielwert `municipality_accepted`/`municipality_declined` + weiterhin eigene Gemeinde | Verhindert, dass eine Gemeinde einen Vorschlag in einen beliebigen Status setzt oder auf eine fremde Anfrage umbiegt; kombiniert sich per OR mit der bestehenden internen UPDATE-Policy | 2026-07-26 |
+| Sowohl inkrementeller Patch (`20260726090000_municipality_proposal_decision.sql`) als auch Ergänzung in der kanonischen `20260725120000_init_schema.sql` | Gleiches Muster wie PROJ-5 (`20260725140000_municipality_request_policies.sql`) für bereits migrierte Umgebungen vs. Neuinstallationen | 2026-07-26 |
+| `acceptProposal`/`declineProposal` prüfen serverseitig zusätzlich Rolle, Status „freigegeben" und Zugehörigkeit zur eigenen Gemeinde, und die Anzahl betroffener Zeilen nach dem Update | Gleiche Lehre wie PROJ-5/7: RLS-blockierte Schreibvorgänge liefern keinen Fehler, sondern betreffen still null Zeilen | 2026-07-26 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Component Structure
+```
+/municipality/requests/[id]/proposals/          — Vorschlagsliste einer eigenen Anfrage (Server Component)
+  └── MunicipalityProposalsTable                   Kandidatenname, Fähigkeiten, Region, Verfügbarkeit,
+                                                      Status-Badge, Annehmen/Ablehnen (nur bei "freigegeben")
+  └── Empty State                                   "Noch keine freigegebenen Vorschläge" bei leerer Liste
+
+Ergänzung auf /municipality/requests/[id]/: neuer Button "Vorschläge (N)" → verlinkt hierher
+Ergänzung auf /internal/requests/[id]/proposals/ (PROJ-7): Status-Badges zeigen bereits "municipality_accepted"/"municipality_declined" (Labels waren dort vorsorglich schon angelegt), keine Code-Änderung nötig
+```
+
+### Data Model
+Keine neue Tabelle. Nutzt `candidate_proposals` (Status-Übergang `approved` → `municipality_accepted`/`municipality_declined`), `personnel_requests` (Eigentümerprüfung), `candidates` (Anzeige), `profiles` (vorschlagende Person für die Benachrichtigung), `notifications`, `activity_log`. Zwei RLS-Änderungen wie oben beschrieben, sonst keine Schema-Änderung.
+
+### Tech Decisions (Begründung)
+- **Statusgefilterte Sichtbarkeit direkt in der RLS statt nur in der Abfrage** — eine rein anwendungsseitige Filterung liesse sich über einen direkten API-Aufruf umgehen; die Einschränkung gehört auf die gleiche Verteidigungsebene wie die übrige Autorisierung im Projekt.
+- **`with check` beschränkt den Zielstatus explizit auf die zwei erlaubten Werte** — verhindert, dass eine Gemeinde einen Vorschlag z.B. zurück auf „vorgeschlagen" setzt oder sich selbst intern freigibt.
+- **Anfragebezogene Route** (`/municipality/requests/[id]/proposals`) statt globaler Liste — konsistent mit dem in PROJ-6/7 etablierten Muster.
+
+### Dependencies (zu installierende Pakete)
+- Keine neuen Pakete — nutzt bereits vorhandene shadcn-Komponenten (Table, Badge, AlertDialog, Button) aus PROJ-3/4/5/6/7.
 
 ## Implementation Notes (Frontend/Backend)
 _To be added by /frontend and /backend_
