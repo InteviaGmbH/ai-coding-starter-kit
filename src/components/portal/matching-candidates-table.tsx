@@ -9,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
+import { ProposeCandidateButton } from "@/components/portal/propose-candidate-button"
 
 export interface MatchingCandidateRow {
   id: string
@@ -18,9 +18,16 @@ export interface MatchingCandidateRow {
   skills: string[]
   region: string | null
   availability: string | null
+  alreadyProposed: boolean
 }
 
-export function MatchingCandidatesTable({ candidates }: { candidates: MatchingCandidateRow[] }) {
+interface Props {
+  candidates: MatchingCandidateRow[]
+  requestId: string
+  requestReviewed: boolean
+}
+
+export function MatchingCandidatesTable({ candidates, requestId, requestReviewed }: Props) {
   if (candidates.length === 0) {
     return (
       <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -54,13 +61,19 @@ export function MatchingCandidatesTable({ candidates }: { candidates: MatchingCa
             <TableCell>{c.region ?? "—"}</TableCell>
             <TableCell>{c.availability ?? "—"}</TableCell>
             <TableCell className="text-right">
-              <Button
-                size="sm"
-                disabled
-                title="Kandidatenvorschlag folgt mit PROJ-7 (noch nicht verfügbar)"
-              >
-                Kandidat vorschlagen
-              </Button>
+              <ProposeCandidateButton
+                requestId={requestId}
+                candidateId={c.id}
+                candidateName={`${c.firstName} ${c.lastName}`}
+                disabled={!requestReviewed || c.alreadyProposed}
+                disabledReason={
+                  !requestReviewed
+                    ? "Die Anfrage muss zuerst geprüft werden, bevor Kandidaten vorgeschlagen werden können."
+                    : c.alreadyProposed
+                      ? "Dieser Kandidat wurde bereits vorgeschlagen und wartet auf Entscheidung."
+                      : undefined
+                }
+              />
             </TableCell>
           </TableRow>
         ))}

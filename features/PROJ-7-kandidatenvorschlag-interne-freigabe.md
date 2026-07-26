@@ -110,7 +110,16 @@ Keine neuen Tabellen. Nutzt ausschliesslich bereits bestehende Strukturen aus PR
 - Keine neuen Pakete — nutzt bereits vorhandene shadcn-Komponenten (Table, Badge, Dialog, Button) aus PROJ-3/4/5/6.
 
 ## Implementation Notes (Frontend/Backend)
-_To be added by /frontend and /backend_
+
+**Umgesetzt:**
+- Keine neue Migration — nutzt die bestehende `candidate_proposals`-Tabelle und RLS aus PROJ-1
+- `src/app/internal/requests/[id]/proposals/actions.ts`: `proposeCandidate` (prüft Anfrage-Status „geprüft", Kandidat-Kontostatus, verhindert doppelten offenen Vorschlag, setzt `created_by_id`/`created_by` explizit, `activity_log`-Eintrag), `reviewProposal` (freigeben/ablehnen, nur bei Status „vorgeschlagen", idempotent-abweisend bei bereits entschiedenen Vorschlägen, `activity_log`-Eintrag), `withdrawProposal` (löschen, nur bei Status „vorgeschlagen"); alle drei prüfen die Anzahl betroffener Zeilen nach jedem Schreibvorgang statt nur auf `error` (gleiche Lehre wie PROJ-5)
+- `src/components/portal/propose-candidate-button.tsx`: aktiviert den bisherigen PROJ-6-Platzhalter-Button mit Bestätigungsdialog (`AlertDialog` + eigenständiger `Button` statt `AlertDialogAction`, damit Fehlermeldungen sichtbar bleiben — Lehre aus PROJ-3), Redirect zur Vorschlagsliste nach Erfolg
+- `src/app/internal/requests/[id]/candidates/page.tsx` (PROJ-6): liest zusätzlich `personnel_requests.status` und bereits offene Vorschläge (`candidate_proposals` mit Status „vorgeschlagen") pro Kandidat, reicht beides an die Tabelle weiter, damit der Button korrekt aktiviert/deaktiviert wird
+- `src/app/internal/requests/[id]/proposals/page.tsx` + `src/components/portal/proposals-table.tsx`: Vorschlagsliste je Anfrage mit Kandidat, Status-Badge, „vorgeschlagen von", Datum, Freigeben/Ablehnen/Zurückziehen (nur bei Status „vorgeschlagen")
+- `src/app/internal/requests/[id]/page.tsx`: neuer Button „Vorschläge (N)" mit Live-Anzahl, verlinkt zur neuen Vorschlagsliste
+- 10 neue Vitest-Tests für `proposals/actions.ts` (Berechtigung, Statusprüfung der Anfrage, Kandidat-Kontostatus, Duplikatsprüfung, erfolgreicher Vorschlag inkl. Aktivitätseintrag, Freigeben/Ablehnen inkl. Ablehnung bei bereits entschiedenem Vorschlag, Zurückziehen inkl. Ablehnung bei bereits entschiedenem Vorschlag)
+- `npm test` (35/35), `npm run build` grün; Smoke-Test gegen laufenden Dev-Server: neue geschützte Route `/internal/requests/[id]/proposals` → 307-Redirect ohne Login
 
 ## QA Test Results
 _To be added by /qa_

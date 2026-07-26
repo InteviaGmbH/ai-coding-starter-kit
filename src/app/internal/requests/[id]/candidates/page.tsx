@@ -32,7 +32,7 @@ export default async function RequestCandidatesPage({
 
   const { data: request } = await supabase
     .from("personnel_requests")
-    .select("id, title, required_skills, region")
+    .select("id, title, required_skills, region, status")
     .eq("id", id)
     .single()
 
@@ -73,6 +73,14 @@ export default async function RequestCandidatesPage({
 
   const statusByProfileId = new Map((profiles ?? []).map((p) => [p.id, p.account_status]))
 
+  const { data: openProposals } = await supabase
+    .from("candidate_proposals")
+    .select("candidate_id")
+    .eq("request_id", id)
+    .eq("status", "proposed")
+
+  const alreadyProposedIds = new Set((openProposals ?? []).map((p) => p.candidate_id))
+
   const rows: MatchingCandidateRow[] = (candidates ?? [])
     .filter((c) => {
       if (!c.profile_id) return true // internally entered, always eligible
@@ -85,6 +93,7 @@ export default async function RequestCandidatesPage({
       skills: c.skills ?? [],
       region: c.region,
       availability: c.availability,
+      alreadyProposed: alreadyProposedIds.has(c.id),
     }))
 
   return (
@@ -99,7 +108,11 @@ export default async function RequestCandidatesPage({
         <h1 className="text-2xl font-semibold">Kandidaten suchen: {request.title}</h1>
       </div>
       <MatchFiltersBar requestId={id} initialSkills={activeSkills} initialRegion={activeRegion} />
-      <MatchingCandidatesTable candidates={rows} />
+      <MatchingCandidatesTable
+        candidates={rows}
+        requestId={id}
+        requestReviewed={request.status === "reviewed"}
+      />
     </div>
   )
 }

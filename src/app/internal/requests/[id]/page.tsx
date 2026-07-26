@@ -35,6 +35,11 @@ export default async function InternalRequestDetailPage({
     .eq("id", request.municipality_id)
     .single()
 
+  const { count: proposalCount } = await supabase
+    .from("candidate_proposals")
+    .select("id", { count: "exact", head: true })
+    .eq("request_id", request.id)
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
@@ -45,6 +50,11 @@ export default async function InternalRequestDetailPage({
         <div className="flex gap-2">
           <Button asChild variant="outline">
             <Link href={`/internal/requests/${request.id}/candidates`}>Kandidaten suchen</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href={`/internal/requests/${request.id}/proposals`}>
+              Vorschläge ({proposalCount ?? 0})
+            </Link>
           </Button>
           <InternalRequestDetailActions requestId={request.id} status={request.status} />
         </div>
