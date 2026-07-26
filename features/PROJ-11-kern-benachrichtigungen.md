@@ -63,12 +63,42 @@
 ### Technical Decisions
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
+|----------|-----------|------|
+| Keine neue Tabelle — `notifications` existiert bereits aus PROJ-1 mit passenden Feldern (`recipient_id`, `type`, `message`, `is_read`) | Schema deckt bereits alles Nötige ab | 2026-07-26 |
+| Neue RLS-Policy `notifications_insert_municipality_new_request`: `with check` beschränkt auf `type = 'new_request'` und `recipient_id` aus aktiven internen Profilen | Analoge, eng begrenzte Policy wie bei PROJ-8 (`..._proposal_decision`); verhindert, dass eine Gemeinde beliebige Benachrichtigungstypen an beliebige Empfänger senden kann | 2026-07-26 |
+| Empfänger-Ermittlung für den Broadcast nutzt den Admin-Client (`service_role`) nur lesend, um aktive interne `profiles`-IDs zu ermitteln (Gemeinde darf per RLS keine fremden Profile lesen); der eigentliche `INSERT` in `notifications` läuft weiterhin über den normalen, RLS-geprüften Client | Trennt „wer darf was lesen" von „wer darf was schreiben" — die Autorisierung des Schreibvorgangs bleibt vollständig bei RLS (zweite Verteidigungslinie), der Admin-Client wird nicht für den sicherheitskritischen Teil verwendet | 2026-07-26 |
+| „Vorschlag"- und „Einsatz aktiv"-Trigger werden in bereits bestehende interne Server Actions (`reviewProposal`, `advanceAssignmentStatus`) ergänzt, keine neue RLS-Policy nötig | Beide Aktionen laufen bereits über einen internen Akteur → `notifications_insert_internal` deckt das ab | 2026-07-26 |
+| `NotificationBell` (Client) wird in `PortalShell` integriert, alle drei Portal-Layouts (`internal`/`municipality`/`candidate`) laden die letzten 10 Benachrichtigungen + ungelesene Anzahl serverseitig und reichen sie als Props durch | Wiederverwendung derselben Shell für alle Rollen; serverseitiges Laden vermeidet einen zusätzlichen Client-Request beim ersten Rendern | 2026-07-26 |
+| „Als gelesen markieren" nutzt eine neue Server Action unter `src/app/notifications/actions.ts` (kein eigener Seitenpfad, nur Aktionen) auf Basis der bereits bestehenden `notifications_update_own`-Policy | Kein neues RLS nötig; Ordner ohne `page.tsx` ist im Projekt bereits üblich (z.B. `internal/contracts/`) | 2026-07-26 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Component Structure
+```
+PortalShell (alle drei Portale, erweitert)
+  └── NotificationBell (Client)     Glocke mit Badge (ungelesene Anzahl), Popover mit Liste
+        └── NotificationList          letzte 10 Benachrichtigungen, "Als gelesen markieren" pro Zeile
+        └── Empty State                "Keine Benachrichtigungen" bei leerer Liste
+
+Erweiterte Server Actions (kein neuer Bildschirm):
+  municipality/requests/actions.ts    createPersonnelRequest: + Broadcast an aktive interne Nutzer
+  internal/requests/[id]/proposals/actions.ts   reviewProposal: + Benachrichtigung bei "approved"
+  internal/assignments/actions.ts     advanceAssignmentStatus: + Benachrichtigung bei "active"
+```
+
+### Data Model
+Keine neue Tabelle. Nutzt ausschliesslich `notifications` (bestehend) sowie `profiles` (Admin-Client-Lookup für den Broadcast).
+
+### Tech Decisions (Begründung)
+- **Admin-Client nur für den Lese-Lookup, nie für den Schreibvorgang selbst** — hält die Sicherheitsgarantie „RLS ist die zweite Verteidigungslinie für jeden Schreibzugriff" konsequent ein, auch für diesen Sonderfall.
+- **Serverseitiges Vorladen statt Client-seitigem Fetch/Polling** — für den Pilot-Massstab ausreichend, keine Echtzeit-Anforderung im PRD; vermeidet zusätzliche Komplexität (kein Realtime-Subscription nötig).
+- **Wiederverwendung der bestehenden `notifications_update_own`-Policy** — keine neue Sicherheitsfläche für das Lesen/Markieren nötig.
+
+### Dependencies (zu installierende Pakete)
+- Keine neuen Pakete — nutzt bereits vorhandene shadcn-Komponenten (Popover, Badge, Button) und `lucide-react` (bereits für das Menü-Symbol in `PortalShell` im Einsatz) für das Glocken-Icon.
 
 ## Implementation Notes (Frontend/Backend)
 _To be added by /frontend and /backend_
