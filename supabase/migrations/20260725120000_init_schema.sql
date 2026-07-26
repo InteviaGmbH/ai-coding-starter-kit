@@ -421,6 +421,22 @@ create policy "municipalities_delete_internal" on municipalities for delete
 create policy "candidates_select" on candidates for select
   using (public.is_internal_role() or id = public.current_candidate_id());
 
+-- PROJ-8: lets a municipality read the candidate details (name, skills,
+-- region, availability) for a candidate once their proposal to one of the
+-- municipality's own requests is approved or later — needed to actually
+-- render the municipality-facing proposals page.
+create policy "candidates_select_municipality_proposed" on candidates for select
+  using (
+    public.is_active()
+    and public.current_role() = 'municipality'
+    and id in (
+      select cp.candidate_id from candidate_proposals cp
+      join personnel_requests pr on pr.id = cp.request_id
+      where pr.municipality_id = public.current_municipality_id()
+      and cp.status not in ('proposed', 'rejected')
+    )
+  );
+
 -- A candidate may create exactly one candidates row for themselves during
 -- self-registration (profile_id = their own auth id; the unique constraint on
 -- candidates.profile_id blocks a second attempt). Internal roles can create

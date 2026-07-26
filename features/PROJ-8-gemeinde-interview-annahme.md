@@ -2,7 +2,7 @@
 
 ## Status: Approved
 **Created:** 2026-07-26
-**Last Updated:** 2026-07-26 (QA: 1 Critical + 1 High gefunden und noch im selben Durchgang behoben — production-ready)
+**Last Updated:** 2026-07-26 (Post-Approval-Regression BUG-3 gefunden und behoben durch echten E2E-Testlauf — production-ready)
 
 ## Dependencies
 - Requires: PROJ-7 (Kandidatenvorschlag & interne Freigabe) — nur intern freigegebene (`approved`) Vorschläge sind für die Gemeinde relevant
@@ -116,7 +116,7 @@ Keine neue Tabelle. Nutzt `candidate_proposals` (Status-Übergang `approved` →
 
 **Tested:** 2026-07-26
 **App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt)
-**Migrationsstatus:** `20260726090000`/`20260726100000` erfolgreich gegen das echte Supabase-Projekt ausgeführt (2026-07-26, bestätigt durch Nutzer)
+**Migrationsstatus:** `20260726090000`/`20260726100000` erfolgreich gegen das echte Supabase-Projekt ausgeführt (2026-07-26, bestätigt durch Nutzer). `20260726140000` (BUG-3-Fix) noch **nicht** ausgeführt — siehe Post-Approval-Regression unten
 **Tester:** QA Engineer (AI)
 
 ### Automatisierte Tests
@@ -170,12 +170,26 @@ Der eigentliche Annahme-/Ablehnungs-Workflow im Browser konnte mangels aktivem `
 - **Fix:** Zwei neue, eng begrenzte INSERT-Policies: `activity_log_insert_municipality_proposal_decision` (nur `entity_type = 'candidate_proposal'`, nur eigene Anfragen) und `notifications_insert_municipality_proposal_decision` (nur `recipient_id` = vorschlagende Person der eigenen Anfrage). Migration: `supabase/migrations/20260726100000_proposal_decision_fixes.sql` (+ direkt in `20260725120000_init_schema.sql` für Neuinstallationen)
 - **Priority:** Fixed
 
+### Post-Approval-Regression (gefunden 2026-07-26 durch einen vollständigen manuellen E2E-Testlauf mit echten Accounts, PROJ-1–12)
+
+#### BUG-3: Gemeinde sieht „Unbekannt"/„—" statt Kandidatenname/-daten auf der eigenen Vorschlagsliste — ✅ FIXED (2026-07-26)
+- **Severity:** High
+- **Steps to Reproduce:**
+  1. Ein Vorschlag wird intern freigegeben, die Gemeinde öffnet `/municipality/requests/[id]/proposals`
+  2. Die Seite joint `candidate_proposals` → `candidates`, um Name/Fähigkeiten/Region/Verfügbarkeit anzuzeigen
+  3. Die RLS-Policy `candidates_select` (PROJ-1) erlaubte ausschliesslich internen Rollen und dem Kandidaten selbst Lesezugriff — für die Gemeinde existierte überhaupt kein Zweig
+  4. Postgres/PostgREST liefert bei einer RLS-blockierten Join-Beziehung keinen Fehler, sondern schlicht `null` für das verknüpfte Objekt — die bereits vorhandene defensive Fallback-Logik (`candidate ? ... : "Unbekannt"`) griff dadurch bei **jedem** Aufruf, nicht nur im dokumentierten Edge Case
+  5. Ergebnis: Die Gemeinde sah nie den Namen, die Fähigkeiten, die Region oder die Verfügbarkeit des vorgeschlagenen Kandidaten — genau die Information, die sie für die Annahme-/Ablehnungs-Entscheidung braucht; die Annehmen/Ablehnen-Buttons selbst funktionierten davon unabhängig korrekt
+  6. **Warum nicht schon in der ursprünglichen QA gefunden:** Es gab noch kein `municipality`-Testkonto — dieselbe, seit PROJ-2 in jeder QA-Runde dokumentierte Coverage-Lücke. Reiner Code-Review der Seite selbst wirkte plausibel (Join-Syntax korrekt, Fallback vorhanden), die fehlende RLS-Freigabe auf der anderen Tabelle war ohne echten Datenabruf nicht erkennbar
+- **Fix:** Neue Policy `candidates_select_municipality_proposed` — erlaubt der Gemeinde Lesezugriff auf einen Kandidaten, sobald dessen Vorschlag zu einer ihrer eigenen Anfragen den Status „freigegeben" oder später erreicht hat (identische Sichtbarkeitsregel wie bereits bei `candidate_proposals_select`). Migration: `supabase/migrations/20260726140000_candidates_select_municipality_proposed.sql` (+ direkt in `20260725120000_init_schema.sql` für Neuinstallationen)
+- **Priority:** Fixed
+
 ### Summary
-- **Acceptance Criteria:** Alle 9 Kriterien bestätigt (nach Fix von BUG-1/BUG-2)
-- **Bugs Found:** 2 total (1 Critical, 1 High) — beide noch während dieses QA-Durchgangs behoben, 0 offen
-- **Security:** Ursprünglicher Autorisierungs-/Integritätsfehler (BUG-2) durch Column-Lock-Trigger geschlossen; App-Oberfläche verhielt sich bereits korrekt (Rollen-Guards, Eigentumsprüfungen)
+- **Acceptance Criteria:** Alle 9 Kriterien bestätigt (nach Fix von BUG-1/BUG-2); die „Gemeinde sieht Kandidatendetails"-Erwartung (implizit in „sieht ihre eigenen Vorschläge") war durch BUG-3 verletzt, jetzt ebenfalls bestätigt
+- **Bugs Found:** 3 total (1 Critical, 2 High) — alle behoben, 0 offen. BUG-3 wurde erst nachträglich durch einen echten End-to-End-Testlauf mit realen Accounts gefunden, nicht durch die ursprüngliche Code-Review-QA
+- **Security:** Ursprünglicher Autorisierungs-/Integritätsfehler (BUG-2) durch Column-Lock-Trigger geschlossen; App-Oberfläche verhielt sich bereits korrekt (Rollen-Guards, Eigentumsprüfungen); BUG-3 war eine fehlende (nicht eine zu weite) Berechtigung — kein Sicherheitsrisiko, aber ein funktionaler Blocker
 - **Production Ready:** **YES** — keine offenen Critical/High/Medium-Bugs
-- **Empfehlung:** `npm test` (40/40) und `npm run build` nach den Fixes erneut grün bestätigt. Beide Migrationen bereits ausgeführt (siehe Migrationsstatus oben). Sobald ein `municipality`-Testkonto existiert, den vollständigen Annahme-/Ablehnungs-Workflow einmal end-to-end manuell verifizieren
+- **Empfehlung:** `npm test` (40/40) und `npm run build` weiterhin grün. Migration `20260726140000` muss noch gegen das echte Supabase-Projekt ausgeführt werden (siehe Migrationsstatus). Dieser Fund bestätigt eindrücklich die wiederholt dokumentierte Empfehlung: reine Code-Review-QA ohne echte Testkonten kann RLS-Lücken auf verknüpften Tabellen nicht zuverlässig aufdecken — ein echter End-to-End-Testlauf mit realen Accounts sollte für jedes Feature mit Cross-Table-Joins nachgeholt werden, sobald Testkonten verfügbar sind
 
 ## Deployment
 _To be added by /deploy_

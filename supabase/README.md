@@ -37,6 +37,7 @@ If your database already has the BUG-1–4 fixes but predates the features below
 - `migrations/20260726110000_assignments_internal_only_update.sql` (PROJ-9 — assignment status progression is internal-only; replaces the PROJ-1 `assignments_update` policy that had no `with check` at all)
 - `migrations/20260726120000_contracts_internal_only.sql` (PROJ-10 — both contract document uploads are internal-only; replaces the PROJ-1 `contracts_update`/`contracts_documents_insert` policies that let the municipality/candidate write with no `with check` at all)
 - `migrations/20260726130000_notifications_new_request_broadcast.sql` (PROJ-11 — lets a municipality broadcast a "new request" notification to every active internal user)
+- `migrations/20260726140000_candidates_select_municipality_proposed.sql` (PROJ-8 regression fix, found via a full E2E dry run — municipalities had no read access at all to `candidates`, so the proposals page silently showed "Unbekannt"/"—" instead of the candidate's name/skills/region/availability)
 
 ## Future migrations
 Add new files to `migrations/` named `<timestamp>_<description>.sql` and run them the same way. Once the Supabase CLI is set up locally, `supabase db push` can apply them directly instead of the SQL Editor.
