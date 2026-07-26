@@ -116,7 +116,7 @@ Keine neue Tabelle. Nutzt `candidate_proposals` (Status-Übergang `approved` →
 
 **Tested:** 2026-07-26
 **App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt)
-**Migrationsstatus:** `20260726090000`/`20260726100000` erfolgreich gegen das echte Supabase-Projekt ausgeführt (2026-07-26, bestätigt durch Nutzer). `20260726140000` (BUG-3-Fix) noch **nicht** ausgeführt — siehe Post-Approval-Regression unten
+**Migrationsstatus:** `20260726090000`/`20260726100000`/`20260726140000` erfolgreich gegen das echte Supabase-Projekt ausgeführt (2026-07-26, bestätigt durch Nutzer)
 **Tester:** QA Engineer (AI)
 
 ### Automatisierte Tests
@@ -189,7 +189,7 @@ Der eigentliche Annahme-/Ablehnungs-Workflow im Browser konnte mangels aktivem `
 - **Bugs Found:** 3 total (1 Critical, 2 High) — alle behoben, 0 offen. BUG-3 wurde erst nachträglich durch einen echten End-to-End-Testlauf mit realen Accounts gefunden, nicht durch die ursprüngliche Code-Review-QA
 - **Security:** Ursprünglicher Autorisierungs-/Integritätsfehler (BUG-2) durch Column-Lock-Trigger geschlossen; App-Oberfläche verhielt sich bereits korrekt (Rollen-Guards, Eigentumsprüfungen); BUG-3 war eine fehlende (nicht eine zu weite) Berechtigung — kein Sicherheitsrisiko, aber ein funktionaler Blocker
 - **Production Ready:** **YES** — keine offenen Critical/High/Medium-Bugs
-- **Empfehlung:** `npm test` (40/40) und `npm run build` weiterhin grün. Migration `20260726140000` muss noch gegen das echte Supabase-Projekt ausgeführt werden (siehe Migrationsstatus). Dieser Fund bestätigt eindrücklich die wiederholt dokumentierte Empfehlung: reine Code-Review-QA ohne echte Testkonten kann RLS-Lücken auf verknüpften Tabellen nicht zuverlässig aufdecken — ein echter End-to-End-Testlauf mit realen Accounts sollte für jedes Feature mit Cross-Table-Joins nachgeholt werden, sobald Testkonten verfügbar sind
+- **Empfehlung:** `npm test` (40/40) und `npm run build` weiterhin grün. Migration `20260726140000` erfolgreich ausgeführt (siehe Migrationsstatus). Der vollständige Annahme-Workflow wurde am 2026-07-26 in einem eigenständigen End-to-End-Testlauf mit echten Accounts erfolgreich verifiziert (inkl. dieses Fixes) — siehe `docs/e2e-dry-run-2026-07-26.md`. Damit ist die seit PROJ-2 dokumentierte Coverage-Lücke für diesen Workflow geschlossen
 
 ## Deployment
 _To be added by /deploy_

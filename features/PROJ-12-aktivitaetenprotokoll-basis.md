@@ -155,7 +155,7 @@ Keine.
 - **Bugs Found:** 1 total (1 High) — gefunden und behoben durch einen echten E2E-Testlauf, nicht durch die ursprüngliche Code-Review-QA
 - **Security:** Keine Autorisierungslücke; reiner Anwendungsfehler (PostgREST-Embedding-Mehrdeutigkeit), kein RLS-Problem
 - **Production Ready:** **YES** — keine offenen Critical/High/Medium/Low-Bugs
-- **Empfehlung:** `npm test` (75/75) und `npm run build` nach dem Fix weiterhin grün. Dieser Fund bestätigt erneut (wie schon PROJ-8 BUG-3 im selben Testlauf): reine Code-Review-QA ohne echte Testkonten und echte Daten kann Laufzeitfehler wie PostgREST-Embedding-Mehrdeutigkeiten nicht zuverlässig aufdecken
+- **Empfehlung:** `npm test` (75/75) und `npm run build` nach dem Fix weiterhin grün. Die Liste wurde am 2026-07-26 im selben End-to-End-Testlauf mit echten Daten erfolgreich verifiziert (Akteur-Namen, Sortierung, alle zehn erwarteten Ereignis-Beschreibungen) — siehe `docs/e2e-dry-run-2026-07-26.md`. Dieser Fund bestätigt erneut (wie schon PROJ-8 BUG-3 im selben Testlauf): reine Code-Review-QA ohne echte Testkonten und echte Daten kann Laufzeitfehler wie PostgREST-Embedding-Mehrdeutigkeiten nicht zuverlässig aufdecken
 
 ## Deployment
 _To be added by /deploy_
