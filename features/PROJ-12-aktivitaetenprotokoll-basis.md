@@ -59,12 +59,39 @@
 ### Technical Decisions
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
+|----------|-----------|------|
+| Keine neue Tabelle — nutzt `activity_log` (bestehend seit PROJ-1) und `profiles` (Akteur-Name per Join) | Schema deckt bereits alles Nötige ab | 2026-07-26 |
+| Reine Server-Component-Seite ohne Server Actions | Rein lesende Funktion (siehe Spec), kein Zustand, kein Client-seitiges Formular nötig — analog zum Ansatz aus PROJ-6 | 2026-07-26 |
+| Deutsche Beschreibungstexte über eine feste Zuordnungstabelle (`entity_type` + `action` → Text) im Code, mit Fallback-Text für nicht gemappte Kombinationen | Erfüllt die Anforderung „verständliche deutsche Beschreibung" und den Fallback-AC ohne Schema-Änderung; Fallback verhindert, dass künftige, noch nicht gemappte Ereignistypen (z.B. aus PROJ-13+) die Seite zum Absturz bringen | 2026-07-26 |
+| Abfrage: neueste 50 Einträge nach `created_date` absteigend, kein Pagination-Mechanismus | Entspricht der Product Decision „letzte 50, keine Pagination" | 2026-07-26 |
+| Akteur-Anzeige mit Fallback „Unbekannt", falls `actor_id` null ist oder das verknüpfte Profil nicht (mehr) existiert | Erfüllt den entsprechenden AC/Edge-Case ohne Absturz | 2026-07-26 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Component Structure
+```
+/internal/activity/                — Aktivitätenprotokoll (Server Component)
+  └── ActivityLogTable                Akteur, Beschreibung (deutsch), Zeitpunkt — letzte 50 Einträge
+  └── Empty State                     "Noch keine Aktivitäten" bei leerer Liste
+
+Nav-Ergänzung in /internal/layout.tsx: neuer Punkt "Aktivitäten" (nach "Freischaltungen")
+```
+
+### Data Model
+Keine neue Tabelle. Nutzt ausschliesslich bereits bestehende Strukturen:
+- `activity_log` — `actor_id`, `entity_type`, `action`, `created_date` (bereits von PROJ-5/7/8/9/10 befüllt)
+- `profiles` — Anzeige des Akteur-Namens (`full_name` oder `email` als Fallback)
+
+### Tech Decisions (Begründung)
+- **Reine Server-Component ohne Server Actions** — die Seite liest ausschliesslich, es gibt keinen Nutzer-Input, der eine Mutation auslösen würde; das hält die Implementierung minimal.
+- **Feste Text-Zuordnungstabelle statt generischer Anzeige der Rohwerte** — macht das Protokoll für Menschen lesbar (PRD-Anforderung „Basis"-Protokoll), ohne das bestehende Schema zu verändern; ein Fallback deckt zukünftige, noch nicht gemappte Ereignisse ab, ohne dass diese Seite bei jeder neuen Feature-Erweiterung zwingend mit angepasst werden müsste.
+- **Kein Pagination-Mechanismus** — bei Pilot-Datenvolumen unnötig; die letzten 50 Einträge decken den relevanten Zeitraum ab.
+
+### Dependencies (zu installierende Pakete)
+- Keine neuen Pakete — nutzt bereits vorhandene shadcn-Komponenten (Table, Badge) aus PROJ-3/4/5/6/7/8/9.
 
 ## Implementation Notes (Frontend/Backend)
 _To be added by /frontend and /backend_
