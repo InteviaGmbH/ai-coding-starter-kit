@@ -64,12 +64,47 @@
 ### Technical Decisions
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
+|----------|-----------|------|
+| Keine neue Tabelle — `assignments` existiert bereits aus PROJ-1 mit passendem `assignment_status`-Enum | Schema deckt bereits alles Nötige ab | 2026-07-26 |
+| `assignments_update` (PROJ-1, kein `with check`, liess Gemeinden bislang beliebig schreiben) wird durch `assignments_update_internal` ersetzt (nur `is_internal_role()`) | Schliesst die in der Spec dokumentierte RLS-Lücke; Statuspflege ist ausschliesslich intern (siehe Product Decision) | 2026-07-26 |
+| „Einsatz anlegen"-Button wird direkt in die bestehende interne Vorschlagsliste (PROJ-7 `ProposalsTable`) integriert, bei Zeilen mit Status „von Gemeinde angenommen" ohne existierenden Einsatz | Vermeidet eine weitere separate „bereit für Einsatz"-Liste; nutzt den bereits vorhandenen Bildschirm, der Kandidat und Anfrage im Kontext zeigt | 2026-07-26 |
+| Neue Routen `/internal/assignments` (Liste) und `/internal/assignments/[id]` (Detail mit „Nächster Schritt"-Aktion) statt einer reinen Statusspalte in der Vorschlagsliste | Ein Einsatz lebt über den ursprünglichen Vorschlags-Kontext hinaus (Wochen/Monate Laufzeit) und braucht einen eigenen, dauerhaften Ort für Status-Updates | 2026-07-26 |
+| Statuswechsel serverseitig über eine feste Reihenfolge (`['proposed','accepted','active','completed']`) geprüft: nur `aktuellerIndex + 1` ist zulässig | Verhindert Überspringen/Zurückspringen ohne komplexe Statusmaschine; einfache, robuste Prüfung reicht für die vier Werte | 2026-07-26 |
+| `/municipality/assignments` als rein lesende Liste (keine Aktionen) | Konsistent mit der Product Decision „Gemeinde sieht nur lesend zu"; nutzt die bereits bestehende `assignments_select`-Policy unverändert | 2026-07-26 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Component Structure
+```
+/internal/requests/[id]/proposals/ (PROJ-7): ProposalsTable ergänzt um
+  "Einsatz anlegen"-Button (nur bei Status "von Gemeinde angenommen" und
+  ohne bestehenden Einsatz) → AssignmentFormDialog (Start-/Enddatum,
+  vorausgefüllt aus der Anfrage) → Server Action → Redirect zu
+  /internal/assignments/[id]
+
+/internal/assignments/                — Liste aller Einsätze (Server Component)
+  └── AssignmentsTable                   Kandidat, Gemeinde, Zeitraum, Status-Badge
+/internal/assignments/[id]/            — Detailseite
+  └── AssignmentStatusActions             "Nächster Schritt: <Status>"-Button (deaktiviert bei "abgeschlossen")
+
+/municipality/assignments/             — Liste eigener Einsätze (Server Component, rein lesend)
+  └── MunicipalityAssignmentsTable        Kandidat, Zeitraum, Status-Badge
+```
+Nav-Ergänzungen: „Einsätze" in `/internal/layout.tsx` (nach „Anfragen") und in `/municipality/layout.tsx` (nach „Anfragen").
+
+### Data Model
+Keine neue Tabelle. Nutzt `assignments` (Kern), `candidate_proposals`/`candidates`/`personnel_requests`/`municipalities` (Anzeige-Joins), `activity_log` (Statuswechsel-Ereignis).
+
+### Tech Decisions (Begründung)
+- **Feste Statusreihenfolge statt generischer Statusmaschine** — vier Werte, ein Weg vorwärts; eine Indexprüfung ist die einfachste korrekte Lösung und leicht nachvollziehbar.
+- **Rein interne Update-Policy statt bedingter Gemeinde-Policy** (anders als bei PROJ-8s `candidate_proposals`) — hier gibt es keinen fachlichen Grund, warum die Gemeinde selbst einen Status setzen sollte; „nur lesen" ist die einfachere und sicherere Wahl.
+- **Einsatz-Erstellung im Kontext der Vorschlagsliste statt eigener „bereit"-Liste** — hält den Nutzungsfluss zusammenhängend (Vorschlag ansehen → Gemeinde hat angenommen → Einsatz anlegen), ohne eine zusätzliche Seite zu pflegen.
+
+### Dependencies (zu installierende Pakete)
+- Keine neuen Pakete — nutzt bereits vorhandene shadcn-Komponenten (Table, Badge, Dialog, Button, Input) aus PROJ-3/4/5/6/7/8.
 
 ## Implementation Notes (Frontend/Backend)
 _To be added by /frontend and /backend_
