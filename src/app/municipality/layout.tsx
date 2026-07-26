@@ -5,6 +5,7 @@ import { PortalShell, type PortalNavItem } from "@/components/portal/portal-shel
 const navItems: PortalNavItem[] = [
   { label: "Dashboard", href: "/municipality/dashboard" },
   { label: "Anfragen", href: "/municipality/requests" },
+  { label: "Einsätze", href: "/municipality/assignments" },
 ]
 
 export default async function MunicipalityLayout({ children }: { children: React.ReactNode }) {

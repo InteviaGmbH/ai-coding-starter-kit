@@ -16,7 +16,7 @@ export default async function RequestProposalsPage({
 
   const { data: request } = await supabase
     .from("personnel_requests")
-    .select("id, title")
+    .select("id, title, start_date, end_date")
     .eq("id", id)
     .single()
 
@@ -45,6 +45,14 @@ export default async function RequestProposalsPage({
     (proposers ?? []).map((p) => [p.id, p.full_name ?? p.email]),
   )
 
+  const proposalIds = (proposals ?? []).map((p) => p.id)
+  const { data: assignments } =
+    proposalIds.length > 0
+      ? await supabase.from("assignments").select("id, proposal_id").in("proposal_id", proposalIds)
+      : { data: [] }
+
+  const assignmentIdByProposalId = new Map((assignments ?? []).map((a) => [a.proposal_id, a.id]))
+
   const rows: ProposalRow[] = (proposals ?? []).map((p) => {
     const candidate = Array.isArray(p.candidate) ? p.candidate[0] : p.candidate
     return {
@@ -54,6 +62,7 @@ export default async function RequestProposalsPage({
       candidateId: candidate?.id ?? "",
       candidateName: candidate ? `${candidate.first_name} ${candidate.last_name}` : "Unbekannt",
       proposedByName: p.proposed_by_id ? (proposerNameById.get(p.proposed_by_id) ?? "—") : "—",
+      assignmentId: assignmentIdByProposalId.get(p.id) ?? null,
     }
   })
 
@@ -68,7 +77,11 @@ export default async function RequestProposalsPage({
         </Link>
         <h1 className="text-2xl font-semibold">Vorschläge: {request.title}</h1>
       </div>
-      <ProposalsTable proposals={rows} />
+      <ProposalsTable
+        proposals={rows}
+        defaultStartDate={request.start_date}
+        defaultEndDate={request.end_date}
+      />
     </div>
   )
 }

@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { reviewProposal, withdrawProposal } from "@/app/internal/requests/[id]/proposals/actions"
+import { CreateAssignmentDialog } from "@/components/portal/create-assignment-dialog"
 
 export interface ProposalRow {
   id: string
@@ -32,6 +33,7 @@ export interface ProposalRow {
   candidateId: string
   candidateName: string
   proposedByName: string
+  assignmentId: string | null
 }
 
 const statusLabel: Record<ProposalRow["status"], string> = {
@@ -50,7 +52,13 @@ const statusVariant: Record<ProposalRow["status"], "default" | "secondary" | "de
   municipality_declined: "destructive",
 }
 
-export function ProposalsTable({ proposals }: { proposals: ProposalRow[] }) {
+interface Props {
+  proposals: ProposalRow[]
+  defaultStartDate?: string | null
+  defaultEndDate?: string | null
+}
+
+export function ProposalsTable({ proposals, defaultStartDate, defaultEndDate }: Props) {
   const router = useRouter()
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -152,6 +160,19 @@ export function ProposalsTable({ proposals }: { proposals: ProposalRow[] }) {
                 >
                   Zurückziehen
                 </Button>
+                {p.status === "municipality_accepted" &&
+                  (p.assignmentId ? (
+                    <Button size="sm" variant="outline" asChild>
+                      <Link href={`/internal/assignments/${p.assignmentId}`}>Einsatz ansehen</Link>
+                    </Button>
+                  ) : (
+                    <CreateAssignmentDialog
+                      proposalId={p.id}
+                      candidateName={p.candidateName}
+                      defaultStartDate={defaultStartDate ?? undefined}
+                      defaultEndDate={defaultEndDate ?? undefined}
+                    />
+                  ))}
               </TableCell>
             </TableRow>
           ))}

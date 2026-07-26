@@ -518,18 +518,10 @@ create policy "assignments_select" on assignments for select
 create policy "assignments_insert_internal" on assignments for insert
   with check (public.is_internal_role());
 
-create policy "assignments_update" on assignments for update
-  using (
-    public.is_active()
-    and (
-      public.is_internal_role()
-      or proposal_id in (
-        select cp.id from candidate_proposals cp
-        join personnel_requests pr on pr.id = cp.request_id
-        where pr.municipality_id = public.current_municipality_id()
-      )
-    )
-  );
+-- PROJ-9: status progression is internal-only; the municipality keeps
+-- read-only access via assignments_select.
+create policy "assignments_update_internal" on assignments for update
+  using (public.is_internal_role());
 
 create policy "assignments_delete_internal" on assignments for delete
   using (public.is_internal_role());

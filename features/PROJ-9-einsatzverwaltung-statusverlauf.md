@@ -107,7 +107,16 @@ Keine neue Tabelle. Nutzt `assignments` (Kern), `candidate_proposals`/`candidate
 - Keine neuen Pakete — nutzt bereits vorhandene shadcn-Komponenten (Table, Badge, Dialog, Button, Input) aus PROJ-3/4/5/6/7/8.
 
 ## Implementation Notes (Frontend/Backend)
-_To be added by /frontend and /backend_
+
+**Umgesetzt:**
+- Neue Migration `supabase/migrations/20260726110000_assignments_internal_only_update.sql` (+ gleiche Änderung bereits in `20260725120000_init_schema.sql` für Neuinstallationen): `assignments_update` (bisher ohne `with check`, Gemeinden konnten uneingeschränkt schreiben) ersetzt durch `assignments_update_internal` (nur `is_internal_role()`)
+- `src/app/internal/assignments/actions.ts`: `createAssignment` (nur aus Status „von Gemeinde angenommen", Duplikatsprüfung, Zod-Validierung Start/Enddatum, `activity_log`-Eintrag), `advanceAssignmentStatus` (feste Reihenfolge `proposed→accepted→active→completed`, lehnt Aufruf bei bereits „abgeschlossen" ab, `activity_log`-Eintrag); beide prüfen die Anzahl betroffener Zeilen statt nur auf `error`
+- `src/components/portal/create-assignment-dialog.tsx`: Dialog mit Start-/Enddatum (vorausgefüllt aus der Anfrage), in `proposals-table.tsx` (PROJ-7) bei Status „von Gemeinde angenommen" ohne bestehenden Einsatz eingebunden; existiert bereits ein Einsatz, zeigt die Zeile stattdessen „Einsatz ansehen"
+- `src/app/internal/assignments/page.tsx` + `[id]/page.tsx` + `assignments-table.tsx` + `assignment-status-actions.tsx`: Liste aller Einsätze, Detailseite mit „Nächster Schritt: <Status>"-Button (deaktiviert bei „abgeschlossen")
+- `src/app/municipality/assignments/page.tsx` + `municipality-assignments-table.tsx`: rein lesende Liste eigener Einsätze, verlässt sich auf die bestehende `assignments_select`-RLS
+- Nav-Ergänzung „Einsätze" in `internal/layout.tsx` und `municipality/layout.tsx`
+- 8 neue Vitest-Tests für `internal/assignments/actions.ts` (Berechtigung, falscher Vorschlags-Status, Duplikat, Datumsvalidierung, erfolgreiche Erstellung inkl. Aktivitätseintrag, Statusfortschritt, Ablehnung bei „abgeschlossen")
+- `npm test` (48/48), `npm run build` grün; Smoke-Test gegen laufenden Dev-Server: alle drei neuen geschützten Routen → 307-Redirect ohne Login
 
 ## QA Test Results
 _To be added by /qa_
