@@ -21,7 +21,7 @@ Dafinex ist eine B2B-Vermittlungs- und Einsatzplattform, die temporäre Fachkrä
 | P0 (MVP) | Kandidatensuche mit einfachem Matching (Filter: Fähigkeiten/Region/Verfügbarkeit) | Approved — Spec: [PROJ-6](../features/PROJ-6-kandidatensuche-matching-filter.md) |
 | P0 (MVP) | Interner Kandidatenvorschlag → Freigabe | Approved — Spec: [PROJ-7](../features/PROJ-7-kandidatenvorschlag-interne-freigabe.md) |
 | P0 (MVP) | Gemeinde-Interview/Annahme | Approved — Spec: [PROJ-8](../features/PROJ-8-gemeinde-interview-annahme.md) |
-| P0 (MVP) | Einsatzverwaltung mit Statusverlauf (proposed → accepted → active → completed) | Planned |
+| P0 (MVP) | Einsatzverwaltung mit Statusverlauf (proposed → accepted → active → completed) | Planned — Spec: [PROJ-9](../features/PROJ-9-einsatzverwaltung-statusverlauf.md) |
 | P0 (MVP) | Einfache Vertragsgenerierung (generiertes Dokument, Unterschrift als Upload) | Planned |
 | P0 (MVP) | Kern-Benachrichtigungen (neue Anfrage, Vorschlag, Einsatz aktiv, Vertrag bereit) | Planned |
 | P0 (MVP) | Aktivitätenprotokoll (Basis) | Planned |
