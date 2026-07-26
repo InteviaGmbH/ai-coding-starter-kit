@@ -1,7 +1,8 @@
 # PROJ-7: Kandidatenvorschlag & interne Freigabe
 
-## Status: Planned
+## Status: Approved
 **Created:** 2026-07-26
+**Last Updated:** 2026-07-26 (QA: 1 Low gefunden, geerbtes PROJ-1-RLS-Verhalten, kein Sicherheitsrisiko über die App — production-ready)
 
 ## Dependencies
 - Requires: PROJ-5 (Personalanfrage-Workflow) — eine Anfrage muss Status „geprüft" haben, bevor Kandidaten vorgeschlagen werden können
@@ -122,7 +123,54 @@ Keine neuen Tabellen. Nutzt ausschliesslich bereits bestehende Strukturen aus PR
 - `npm test` (35/35), `npm run build` grün; Smoke-Test gegen laufenden Dev-Server: neue geschützte Route `/internal/requests/[id]/proposals` → 307-Redirect ohne Login
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-07-26
+**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt)
+**Tester:** QA Engineer (AI)
+
+### Automatisierte Tests
+- `npm test`: 35/35 grün (10 neue Tests für `proposals/actions.ts`)
+- `npm run build`: erfolgreich
+- E2E (`tests/PROJ-7-kandidatenvorschlag-interne-freigabe.spec.ts`): 2/2 grün (Chromium + Mobile Safari, nicht authentifizierter Zugriff → Redirect zu `/login`)
+
+### Coverage-Lücke (dokumentiert, kein Bug)
+Der eigentliche Vorschlags-Workflow (vorschlagen → freigeben/ablehnen → zurückziehen, Duplikat-/Statusprüfungen im Browser) konnte mangels aktivem `dafinex_admin`-Testkonto und echter Anfrage-/Kandidatendaten nicht per E2E gegen die echte Anwendung getestet werden (gleiche Einschränkung wie PROJ-2/3/4/5/6). Abgedeckt durch Vitest (gemockter Supabase-Client, alle Verzweigungen der drei Server Actions) + Code-Review.
+
+### Acceptance Criteria Status
+- [x] Vorschlagen nur bei Status „geprüft" (Vitest: Server Action lehnt bei „erstellt" ab; Code-Review: Button clientseitig zusätzlich deaktiviert mit Hinweistext)
+- [x] Duplikat-Vorschlag (Status „vorgeschlagen") wird verhindert (Vitest + Code-Review: Button ausserdem clientseitig deaktiviert)
+- [x] „Vorschläge (N)"-Zugang auf der Anfrage-Detailseite (Code-Review: Live-Count per `count: "exact", head: true`)
+- [x] Vorschlagsliste zeigt Kandidat, Status-Badge, „vorgeschlagen von", Datum (Code-Review)
+- [x] Freigeben/Ablehnen wechselt Status + Aktivitätseintrag (Vitest)
+- [x] Zurückziehen entfernt offenen Vorschlag (Vitest)
+- [x] Aktionen bei bereits entschiedenem Vorschlag deaktiviert/serverseitig abgelehnt (Vitest: „bereits entschieden"-Fehler; Code-Review: Buttons clientseitig zusätzlich deaktiviert mit Tooltip)
+- [x] Rollen-Guard für `municipality`/`candidate` bei internen Aktionen (Vitest: `requireInternalRole()` lehnt ab; RLS als zweite Linie bestätigt, siehe Security Audit)
+- [x] Leere Vorschlagsliste zeigt Hinweistext (Code-Review: `ProposalsTable` early return)
+
+### Security Audit Results (Red Team)
+- [x] Unauthentifizierter Zugriff → Redirect, keine Daten sichtbar (E2E bestätigt)
+- [x] `municipality`/`candidate`-Rollen können `proposeCandidate`/`reviewProposal`/`withdrawProposal` nicht auslösen — `requireInternalRole()` prüft Rolle UND `account_status === 'active'` (Vitest bestätigt)
+- [x] Kandidat mit nicht-aktivem verknüpftem Konto kann nicht vorgeschlagen werden, auch wenn der Aufruf die PROJ-6-Filterung umgeht (Vitest: separate serverseitige Prüfung in `proposeCandidate`, unabhängig von der UI-Liste)
+- [x] Statuswechsel nur bei aktuellem Status „vorgeschlagen" möglich — verhindert nachträgliches Verändern einer bereits final entschiedenen Zeile über einen erneuten Server-Action-Aufruf (Vitest)
+- [x] Alle drei Server Actions prüfen die Anzahl betroffener Zeilen nach Schreibvorgang statt nur auf `error` (Code-Review, gleiche Lehre wie PROJ-5) — verhindert, dass eine von RLS still blockierte Schreiboperation fälschlich als Erfolg gemeldet wird
+- [ ] BUG-1 (Low): `candidate_proposals_insert_internal`/`_update_internal`/`_delete_internal` (RLS, aus PROJ-1) prüfen nur `is_internal_role()`, nicht zusätzlich `is_active()` — bei direktem API-Zugriff unter Umgehung der Server Action (die `account_status` sehr wohl prüft) könnte ein interner Account mit Status „pending" theoretisch schreiben. Kein neuer Fund dieser Spec, sondern ein geerbtes PROJ-1-RLS-Verhalten; praktisch nicht ausnutzbar, da interne Rollen nie per Selbstregistrierung entstehen (`handle_new_user` erlaubt nur `municipality`/`candidate`) und ein bestehender Dafinex-Admin die Rolle explizit vergeben muss
+
+### Bugs Found
+
+#### BUG-1: RLS auf `candidate_proposals` (Insert/Update/Delete) prüft keinen `account_status`
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Ein `dafinex_admin` setzt (hypothetisch, z.B. via SQL Editor) bei einem noch nicht aktivierten Profil die Rolle direkt auf `internal_coordinator`, ohne `account_status` auf `active` zu setzen
+  2. Dieses Profil könnte per direktem PostgREST-Aufruf (unter Umgehung der App/Server Actions) einen Vorschlag anlegen/ändern/löschen, da `is_internal_role()` allein prüft
+  3. Über die App selbst nicht erreichbar: `requireInternalRole()` in `proposals/actions.ts` prüft zusätzlich `account_status === 'active'`
+- **Priority:** Nice to have — geerbtes PROJ-1-Verhalten (dort bewusst nur auf Policies angewendet, die Cross-Party-Daten exponieren), keine neue Lücke durch PROJ-7; könnte im selben Aufräum-Pass wie PROJ-1 BUG-5 behoben werden
+
+### Summary
+- **Acceptance Criteria:** Alle 9 Kriterien bestätigt (Server-Action-Logik per Vitest vollständig abgedeckt, UI-Verhalten per Code-Review)
+- **Bugs Found:** 1 total (1 Low, geerbtes RLS-Verhalten aus PROJ-1, kein praktischer Angriffsweg über die App)
+- **Security:** Keine Autorisierungslücke über die Anwendung selbst; Server Actions bilden eine vollständige zweite Verteidigungslinie zur RLS
+- **Production Ready:** **YES** — keine offenen Critical/High/Medium-Bugs
+- **Empfehlung:** BUG-1 zusammen mit PROJ-1 BUG-5 (Column-Level-Protection) in einem gemeinsamen RLS-Härtungs-Pass behandeln; sobald ein `dafinex_admin`-Testkonto existiert, den vollständigen Vorschlags-Lebenszyklus einmal end-to-end manuell verifizieren
 
 ## Deployment
 _To be added by /deploy_
