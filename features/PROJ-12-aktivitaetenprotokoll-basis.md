@@ -1,7 +1,8 @@
 # PROJ-12: Aktivitätenprotokoll (Basis)
 
-## Status: Planned
+## Status: Approved
 **Created:** 2026-07-26
+**Last Updated:** 2026-07-26 (QA: keine Bugs gefunden — production-ready)
 
 ## Dependencies
 - Requires: PROJ-5, PROJ-7, PROJ-8, PROJ-9, PROJ-10 — schreiben bereits Einträge in `activity_log` (Anfrage geprüft, Vorschlag vorgeschlagen/freigegeben/abgelehnt/von Gemeinde entschieden, Einsatz angelegt/Statuswechsel, Vertrag generiert/unterschrieben)
@@ -105,7 +106,43 @@ Keine neue Tabelle. Nutzt ausschliesslich bereits bestehende Strukturen:
 - `npm test` (61/61, unverändert), `npm run build` grün; Smoke-Test gegen laufenden Dev-Server: neue geschützte Route `/internal/activity` → 307-Redirect ohne Login
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-07-26
+**App URL:** http://localhost:3000 (laufender Dev-Server, echtes Supabase-Projekt)
+**Tester:** QA Engineer (AI)
+
+### Automatisierte Tests
+- `npm test`: 75/75 grün (14 neue Tests für `describeActivity()`: alle 12 aktuell gemappten Kombinationen + 2 Fallback-Fälle)
+- `npm run build`: erfolgreich
+- E2E (`tests/PROJ-12-aktivitaetenprotokoll-basis.spec.ts`): 2/2 grün (Chromium + Mobile Safari, nicht authentifizierter Zugriff → Redirect zu `/login`)
+
+### Coverage-Lücke (dokumentiert, kein Bug)
+Die befüllte Liste selbst (Akteur-Namen, Sortierung, Empty State im Browser) konnte mangels aktivem `dafinex_admin`-Testkonto und echter `activity_log`-Daten nicht per E2E gegen die echte Anwendung getestet werden (gleiche Einschränkung wie PROJ-2–11). Die Mapping-/Fallback-Logik ist vollständig per Vitest abgedeckt, der Rest per Code-Review.
+
+### Acceptance Criteria Status
+- [x] Letzte 50 Ereignisse, absteigend sortiert (Code-Review: `.order("created_date", { ascending: false }).limit(50)`)
+- [x] Akteur, deutsche Beschreibung, Zeitpunkt sichtbar (Code-Review: `ActivityLogTable`-Spalten)
+- [x] Leere Liste zeigt Hinweistext (Code-Review: early return bei `entries.length === 0`)
+- [x] Unbekannte `entity_type`/`action`-Kombination zeigt Fallback statt Absturz (Vitest: 2 dedizierte Fallback-Tests)
+- [x] Fehlender/gelöschter Akteur zeigt „Unbekannt" statt Fehler (Code-Review: `actor?.full_name ?? actor?.email ?? "Unbekannt"`, robust gegen `null` und Array-vs-Objekt-Form der Supabase-Join-Antwort)
+- [x] Serverseitiger Rollen-Guard für `municipality`/`candidate` (E2E bestätigt für unauthentifizierten Zugriff; Rollen-Redirect selbst wird durch den bereits in PROJ-2 getesteten, unveränderten `internal/layout.tsx`-Guard abgedeckt — keine neue Logik, kein erneuter dedizierter Test nötig)
+
+### Security Audit Results (Red Team)
+- [x] Unauthentifizierter Zugriff → Redirect, keine Daten sichtbar (E2E bestätigt)
+- [x] Reine Lesefunktion ohne Server Actions/Mutationen — kein neuer Schreibpfad zu prüfen
+- [x] RLS (`activity_log_select_internal`) bleibt zweite Verteidigungslinie unverändert bestehen; die Seite fügt keine neue Policy hinzu und schwächt keine bestehende ab
+- [x] Akteur-Namen und Ereignis-Texte werden ausschliesslich über React-JSX gerendert (kein `dangerouslySetInnerHTML`) — kein XSS-Vektor, auch nicht über einen manipulierten `full_name`
+- [x] Profile-Join für Akteur-Namen: interne Rolle hat laut `profiles_select_own_or_internal` ohnehin vollen Lesezugriff auf alle Profile — keine zusätzliche Datenexposition durch diesen Join
+
+### Bugs Found
+Keine.
+
+### Summary
+- **Acceptance Criteria:** Alle 6 Kriterien bestätigt
+- **Bugs Found:** 0
+- **Security:** Keine Autorisierungslücke; reine Lesefunktion auf Basis bereits bestehender, unveränderter RLS
+- **Production Ready:** **YES** — keine offenen Critical/High/Medium/Low-Bugs
+- **Empfehlung:** Sobald ein `dafinex_admin`-Testkonto mit echten `activity_log`-Daten existiert, die Liste einmal visuell end-to-end verifizieren (Sortierung, Akteur-Namen, Leerzustand)
 
 ## Deployment
 _To be added by /deploy_

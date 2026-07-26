@@ -38,7 +38,7 @@ const ACTIVITY_DESCRIPTIONS: Record<string, Record<string, string>> = {
   },
 }
 
-function describeActivity(entityType: string, action: string): string {
+export function describeActivity(entityType: string, action: string): string {
   return ACTIVITY_DESCRIPTIONS[entityType]?.[action] ?? `${entityType}: ${action}`
 }
 
