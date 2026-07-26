@@ -65,12 +65,44 @@
 ### Technical Decisions
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
+|----------|-----------|------|
+| Keine neue Tabelle — `contracts` existiert bereits aus PROJ-1 mit passendem `contract_status`-Enum (`generated`/`signed`) und Storage-Bucket `contracts` | Schema deckt bereits alles Nötige ab | 2026-07-26 |
+| `contracts_update` (PROJ-1, kein `with check`, liess Gemeinde/Kandidat bislang beliebig schreiben) wird durch `contracts_update_internal` ersetzt (nur `is_internal_role()`) | Schliesst dieselbe Lücken-Klasse wie PROJ-9s `assignments_update`-Fix, hier proaktiv statt erst in der QA gefunden | 2026-07-26 |
+| `contracts_documents_insert` (Storage) wird auf `is_internal_role()` beschränkt, die Gemeinde-/Kandidat-Zweige entfallen; `contracts_documents_select` bleibt unverändert (Lesezugriff weiterhin für Gemeinde/Kandidat) | Konsistent mit der Product Decision „nur intern lädt hoch" | 2026-07-26 |
+| Datei-Uploads direkt vom Client zum Storage-Bucket (wie PROJ-4s `CandidateDocumentCard`), danach Server Action zum Persistieren des Pfads in `contracts` | Etabliertes, bereits bewährtes Muster im Projekt, keine neue Technik nötig | 2026-07-26 |
+| Vertragsverwaltung wird direkt in die bestehende Einsatz-Detailseite (PROJ-9) integriert (`ContractCard`), keine eigene Route | Konsistent mit der Product Decision „kein eigenes Vertragslisten-Screen" | 2026-07-26 |
+| Neue Route `/municipality/assignments/[id]` (bisher nur Liste in PROJ-9) für die lesende Gemeinde-Sicht inkl. Vertrags-Downloads | Gemeinde braucht einen Ort, um den Vertrag tatsächlich herunterzuladen — die reine Liste aus PROJ-9 reichte dafür nicht aus | 2026-07-26 |
+| Duplikatsprüfung für `createContract` (kein zweiter Vertrag pro Einsatz) auf Anwendungsebene (SELECT vor INSERT), keine DB-Unique-Constraint | Gleiches, bereits akzeptiertes Muster wie PROJ-7 (Vorschläge)/PROJ-9 (Einsätze) | 2026-07-26 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Component Structure
+```
+/internal/assignments/[id]/ (PROJ-9, erweitert): + ContractCard
+  ContractCard (Client)
+    - kein Vertrag, Einsatz noch "vorgeschlagen"   → Hinweistext, kein Upload
+    - kein Vertrag, Einsatz "akzeptiert"+           → Upload "Generiertes Dokument"
+    - Vertrag Status "generiert"                    → Download generiert + Upload "Unterschriebene Version"
+    - Vertrag Status "unterschrieben"                → beide Downloads, keine weiteren Aktionen
+
+/municipality/assignments/[id]/    — neue Detailseite (Server Component, rein lesend)
+  zeigt Einsatzdaten + Vertragsstatus + Downloads (sofern vorhanden)
+/municipality/assignments/          — Tabellenzeilen verlinken neu auf die Detailseite
+```
+
+### Data Model
+Keine neue Tabelle. Nutzt `contracts` (Kern: `assignment_id`, `generated_document_path`, `signed_document_path`, `status`), `assignments` (Statusprüfung „akzeptiert"+), `personnel_requests` (für die „Vertrag bereit"-Benachrichtigung an `created_by_id`), `notifications`, `activity_log`.
+
+### Tech Decisions (Begründung)
+- **Rein interne Schreibrechte statt partei-beschränkter Teil-Updates** — vermeidet bewusst die Komplexität (Column-Lock-Trigger, scoped RLS-Policies), die bei PROJ-8 erst nachträglich als Bugfix nötig wurde; hier von Anfang an einfacher gelöst.
+- **Direkter Client-Upload zum Storage-Bucket** — etabliertes Muster (PROJ-4), keine neue Server-seitige Datei-Handling-Logik nötig.
+- **Integration in bestehende Einsatz-Detailseite statt eigener Vertragsbereich** — ein Vertrag hat ausserhalb seines Einsatzes keinen eigenen Kontext, der eine separate Seite rechtfertigen würde.
+
+### Dependencies (zu installierende Pakete)
+- Keine neuen Pakete — nutzt bereits vorhandene shadcn-Komponenten (Card, Input, Button, Alert) aus PROJ-4/9 und den bereits konfigurierten Supabase-Storage-Client.
 
 ## Implementation Notes (Frontend/Backend)
 _To be added by /frontend and /backend_
