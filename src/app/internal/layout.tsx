@@ -9,6 +9,7 @@ const navItems: PortalNavItem[] = [
   { label: "Kandidaten", href: "/internal/candidates" },
   { label: "Anfragen", href: "/internal/requests" },
   { label: "Einsätze", href: "/internal/assignments" },
+  { label: "Aktivitäten", href: "/internal/activity" },
   { label: "Freischaltungen", href: "/internal/approvals" },
 ]
 

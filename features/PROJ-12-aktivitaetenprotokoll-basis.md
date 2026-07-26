@@ -94,7 +94,15 @@ Keine neue Tabelle. Nutzt ausschliesslich bereits bestehende Strukturen:
 - Keine neuen Pakete — nutzt bereits vorhandene shadcn-Komponenten (Table, Badge) aus PROJ-3/4/5/6/7/8/9.
 
 ## Implementation Notes (Frontend/Backend)
-_To be added by /frontend and /backend_
+
+**Umgesetzt:**
+- `src/app/internal/activity/page.tsx`: Server Component, liest die letzten 50 `activity_log`-Einträge (`order by created_date desc, limit 50`) inkl. Akteur-Join auf `profiles`
+- `src/components/portal/activity-log-table.tsx`: `ActivityLogTable` + `describeActivity()`-Mapping (`entity_type`/`action` → deutscher Satz) mit Fallback `"${entityType}: ${action}"` für nicht gemappte Kombinationen; deckt aktuell alle 12 bestehenden Kombinationen aus PROJ-5/7/8/9/10 ab
+- Akteur-Anzeige mit Fallback „Unbekannt" bei fehlendem `actor_id`/Profil
+- Nav-Eintrag „Aktivitäten" in `internal/layout.tsx` ergänzt
+- Keine neue Server Action, keine neue Migration — reine Lesefunktion auf Basis bestehender RLS (`activity_log_select_internal`)
+- Kein neuer Vitest-Test nötig (keine Server-Action-Logik, analog zu PROJ-6); Testabdeckung der Mapping-/Fallback-Logik erfolgt in `/qa`
+- `npm test` (61/61, unverändert), `npm run build` grün; Smoke-Test gegen laufenden Dev-Server: neue geschützte Route `/internal/activity` → 307-Redirect ohne Login
 
 ## QA Test Results
 _To be added by /qa_

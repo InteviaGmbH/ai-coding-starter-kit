@@ -26,7 +26,7 @@
 | PROJ-9 | Einsatzverwaltung mit Statusverlauf | Approved | [PROJ-9](PROJ-9-einsatzverwaltung-statusverlauf.md) | 2026-07-25 |
 | PROJ-10 | Einfache Vertragsgenerierung | Approved | [PROJ-10](PROJ-10-einfache-vertragsgenerierung.md) | 2026-07-25 |
 | PROJ-11 | Kern-Benachrichtigungen | Approved | [PROJ-11](PROJ-11-kern-benachrichtigungen.md) | 2026-07-25 |
-| PROJ-12 | Aktivitätenprotokoll (Basis) | Architected | [PROJ-12](PROJ-12-aktivitaetenprotokoll-basis.md) | 2026-07-25 |
+| PROJ-12 | Aktivitätenprotokoll (Basis) | In Progress | [PROJ-12](PROJ-12-aktivitaetenprotokoll-basis.md) | 2026-07-25 |
 | PROJ-13 | Partnerportal + Partnerfirmen-Kandidatenvorschläge | Roadmap | — | 2026-07-25 |
 | PROJ-14 | Volle Matching-Score-Formel mit Gewichtungen | Roadmap | — | 2026-07-25 |
 | PROJ-15 | Digitale Multi-Party-Signaturen | Roadmap | — | 2026-07-25 |
