@@ -24,7 +24,7 @@ Dafinex ist eine B2B-Vermittlungs- und Einsatzplattform, die temporäre Fachkrä
 | P0 (MVP) | Einsatzverwaltung mit Statusverlauf (proposed → accepted → active → completed) | Approved — Spec: [PROJ-9](../features/PROJ-9-einsatzverwaltung-statusverlauf.md) |
 | P0 (MVP) | Einfache Vertragsgenerierung (generiertes Dokument, Unterschrift als Upload) | Approved — Spec: [PROJ-10](../features/PROJ-10-einfache-vertragsgenerierung.md) |
 | P0 (MVP) | Kern-Benachrichtigungen (neue Anfrage, Vorschlag, Einsatz aktiv, Vertrag bereit) | Approved — Spec: [PROJ-11](../features/PROJ-11-kern-benachrichtigungen.md) |
-| P0 (MVP) | Aktivitätenprotokoll (Basis) | Planned |
+| P0 (MVP) | Aktivitätenprotokoll (Basis) | Planned — Spec: [PROJ-12](../features/PROJ-12-aktivitaetenprotokoll-basis.md) |
 | P0 (MVP) | Gemeindeportal + interne Dafinex-Seiten | Planned |
 | P1 | Partnerportal + Partnerfirmen-Kandidatenvorschläge | Planned |
 | P1 | Volle Matching-Score-Formel mit einstellbaren Gewichtungen | Planned |
