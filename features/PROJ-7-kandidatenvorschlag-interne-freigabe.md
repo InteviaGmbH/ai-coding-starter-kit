@@ -68,12 +68,46 @@
 ### Technical Decisions
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
+|----------|-----------|------|
+| Keine neue Tabelle, keine neue Migration — `candidate_proposals` und die zugehörigen RLS-Policies (`_insert_internal`, `_update_internal`, `_delete_internal`, `_select`) existieren bereits vollständig aus PROJ-1 | Schema wurde beim ursprünglichen PROJ-1-Design bereits mit diesem Workflow im Kopf entworfen (Status-Enum `proposed/approved/rejected/...` deckt genau diesen Schritt ab) | 2026-07-26 |
+| Neue Route `/internal/requests/[id]/proposals` statt einer globalen Vorschlagsliste | Konsistent mit dem in PROJ-6 etablierten Muster (anfragebezogene Kontextseiten statt globaler Listen) im Pilot-Massstab | 2026-07-26 |
+| „Kandidat vorschlagen"-Button aus PROJ-6 wird aktiviert und ruft eine Server Action auf, die den Nutzer danach zur neuen Vorschlagsliste weiterleitet | Direktes Feedback nach der Aktion, ohne eine separate Bestätigungsseite zu bauen | 2026-07-26 |
+| Duplikatsprüfung („nur ein offener Vorschlag pro Kandidat/Anfrage") erfolgt in der Server Action (Abfrage vor Insert), keine DB-Unique-Constraint | Eine harte Unique-Constraint würde erneutes Vorschlagen nach Ablehnung strukturell verhindern; die Prüfung auf Anwendungsebene erlaubt das gezielt (siehe Product Decision), Race Conditions sind bei diesem Nutzungsmuster (interne Einzelaktion, kein Massen-Insert) im Pilot vernachlässigbar | 2026-07-26 |
+| `proposeCandidate`/`reviewProposal`/`withdrawProposal` prüfen nach jedem Schreibvorgang die Anzahl betroffener Zeilen statt nur auf `error` | Gleiche Lehre wie PROJ-5: RLS-blockierte Schreibvorgänge liefern keinen Fehler, sondern betreffen still null Zeilen | 2026-07-26 |
+| Anfrage-Statusprüfung („geprüft" erforderlich) und Kandidat-Statusprüfung (aktiv/kein ausstehendes Konto) erfolgen serverseitig in der Server Action, zusätzlich zur clientseitigen Button-Deaktivierung | Verteidigung gegen den in den Edge Cases dokumentierten Zeitfenster-Fall (Status ändert sich zwischen Laden der Seite und Klick) | 2026-07-26 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Component Structure
+```
+/internal/requests/[id]/candidates/            — PROJ-6, "Kandidat vorschlagen"-Button jetzt aktiv
+  └── ProposeCandidateButton (Client)             Bestätigungsdialog → Server Action → Redirect zur Vorschlagsliste
+
+/internal/requests/[id]/proposals/              — Vorschlagsliste einer Anfrage (Server Component)
+  └── ProposalsTable                              Kandidatenname, Status-Badge, vorgeschlagen von/am,
+                                                    Freigeben/Ablehnen/Zurückziehen-Aktionen (nur bei Status "vorgeschlagen")
+  └── Empty State                                  "Noch keine Vorschläge" bei leerer Liste
+
+Ergänzung auf /internal/requests/[id]/ (PROJ-5/6): neuer Button/Badge "Vorschläge (N)" → verlinkt hierher
+```
+
+### Data Model
+Keine neuen Tabellen. Nutzt ausschliesslich bereits bestehende Strukturen aus PROJ-1:
+- `candidate_proposals` — `request_id`, `candidate_id`, `proposed_by_id`, `status` (`proposed`/`approved`/`rejected`)
+- `personnel_requests` — Statusprüfung ("geprüft" als Voraussetzung fürs Vorschlagen)
+- `candidates`/`profiles` — Statusprüfung (aktives Konto bzw. kein Konto)
+- `activity_log` — ein Eintrag je Statuswechsel (vorgeschlagen/freigegeben/abgelehnt)
+
+### Tech Decisions (Begründung)
+- **Keine neue Migration** — das PROJ-1-Schema wurde bereits mit diesem Workflow im Kopf entworfen; das spart Risiko und Aufwand.
+- **Anwendungsseitige statt DB-seitige Duplikatsprüfung** — bewusster Trade-off zugunsten von Flexibilität (erneutes Vorschlagen nach Ablehnung bleibt möglich), passend zur geringen Nutzungsfrequenz im Pilot.
+- **Anfragebezogene statt globale Vorschlagsliste** — hält den Scope konsistent mit PROJ-6 und dem Pilot-Massstab (eine Gemeinde, überschaubare Anzahl paralleler Anfragen).
+
+### Dependencies (zu installierende Pakete)
+- Keine neuen Pakete — nutzt bereits vorhandene shadcn-Komponenten (Table, Badge, Dialog, Button) aus PROJ-3/4/5/6.
 
 ## Implementation Notes (Frontend/Backend)
 _To be added by /frontend and /backend_
