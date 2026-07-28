@@ -1,8 +1,8 @@
 # PROJ-9: Einsatzverwaltung mit Statusverlauf
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-07-26
-**Last Updated:** 2026-07-26 (QA: 1 Low gefunden, theoretische Race Condition ohne Sicherheitsrisiko — production-ready)
+**Last Updated:** 2026-07-28 (Deployed: siehe Abschnitt "Deployment" unten)
 
 ## Dependencies
 - Requires: PROJ-8 (Gemeinde-Interview & Annahme) — nur Vorschläge mit Status „von Gemeinde angenommen" sind die Grundlage für einen Einsatz
@@ -172,4 +172,5 @@ Der eigentliche Erstellungs-/Statusfortschritts-Workflow im Browser konnte mange
 - **Empfehlung:** Migration bereits ausgeführt (siehe Migrationsstatus oben). Sobald ein `dafinex_admin`-Testkonto existiert, den vollständigen Einsatz-Lebenszyklus einmal end-to-end manuell verifizieren
 
 ## Deployment
-_To be added by /deploy_
+
+Gemeinsam mit allen anderen P0/MVP-Features live deployed auf Vercel. Volle Deployment-Details (Produktions-URL, Env Vars, Post-Deployment-Test, Pre-Deployment-Fixes) siehe [PROJ-1](PROJ-1-supabase-infrastructure-setup.md#deployment).

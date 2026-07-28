@@ -1,8 +1,8 @@
 # PROJ-2: Rollenbasierte Auth & Portal-Grundgerüst
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-07-25
-**Last Updated:** 2026-07-25 (Fix-Runde 2: BUG-2 vollständig gelöst — Ursache war RETURNING+SELECT-Policy-Interaktion, nicht nur Confirm-Email; alle E2E-Tests grün, production-ready)
+**Last Updated:** 2026-07-28 (Deployed: siehe Abschnitt "Deployment" unten)
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — Auth, `profiles`-Schema, RLS, Storage-Buckets
@@ -246,4 +246,5 @@ Kurz geprüft, ob dasselbe RETURNING/SELECT-Policy-Muster auch andere `create*`-
 - **Empfehlung:** BUG-4 (Storage-Hygiene) und BUG-6 (Doku-Konsistenz, aus Fix-Runde 1) bei Gelegenheit in einem gemeinsamen Aufräum-Pass mit den analogen Funden aus PROJ-3/4 erledigen; Freischaltungs-/Login-Flow einmal manuell verifizieren, sobald ein `dafinex_admin`-Testkonto existiert
 
 ## Deployment
-_To be added by /deploy_
+
+Gemeinsam mit allen anderen P0/MVP-Features live deployed auf Vercel. Volle Deployment-Details (Produktions-URL, Env Vars, Post-Deployment-Test, Pre-Deployment-Fixes) siehe [PROJ-1](PROJ-1-supabase-infrastructure-setup.md#deployment).

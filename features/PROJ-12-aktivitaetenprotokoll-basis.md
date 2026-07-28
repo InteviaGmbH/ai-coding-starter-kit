@@ -1,8 +1,8 @@
 # PROJ-12: Aktivitätenprotokoll (Basis)
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-07-26
-**Last Updated:** 2026-07-26 (Post-Approval-Regression BUG-1 gefunden und behoben durch echten E2E-Testlauf — production-ready)
+**Last Updated:** 2026-07-28 (Deployed: siehe Abschnitt "Deployment" unten)
 
 ## Dependencies
 - Requires: PROJ-5, PROJ-7, PROJ-8, PROJ-9, PROJ-10 — schreiben bereits Einträge in `activity_log` (Anfrage geprüft, Vorschlag vorgeschlagen/freigegeben/abgelehnt/von Gemeinde entschieden, Einsatz angelegt/Statuswechsel, Vertrag generiert/unterschrieben)
@@ -158,4 +158,5 @@ Keine.
 - **Empfehlung:** `npm test` (75/75) und `npm run build` nach dem Fix weiterhin grün. Die Liste wurde am 2026-07-26 im selben End-to-End-Testlauf mit echten Daten erfolgreich verifiziert (Akteur-Namen, Sortierung, alle zehn erwarteten Ereignis-Beschreibungen) — siehe `docs/e2e-dry-run-2026-07-26.md`. Dieser Fund bestätigt erneut (wie schon PROJ-8 BUG-3 im selben Testlauf): reine Code-Review-QA ohne echte Testkonten und echte Daten kann Laufzeitfehler wie PostgREST-Embedding-Mehrdeutigkeiten nicht zuverlässig aufdecken
 
 ## Deployment
-_To be added by /deploy_
+
+Gemeinsam mit allen anderen P0/MVP-Features live deployed auf Vercel. Volle Deployment-Details (Produktions-URL, Env Vars, Post-Deployment-Test, Pre-Deployment-Fixes) siehe [PROJ-1](PROJ-1-supabase-infrastructure-setup.md#deployment).

@@ -1,8 +1,8 @@
 # PROJ-4: Kandidatenverwaltung
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-07-25
-**Last Updated:** 2026-07-25 (QA: 1 Low gefunden, kein Sicherheitsrisiko — production-ready)
+**Last Updated:** 2026-07-28 (Deployed: siehe Abschnitt "Deployment" unten)
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — `candidates`-Tabelle, RLS, Storage
@@ -164,4 +164,5 @@ Eingeloggte CRUD-/Such-/Upload-Flows konnten mangels aktivem `dafinex_admin`-Tes
 - **Empfehlung:** BUG-1 (Storage-Aufräumen) kann gesammelt mit BUG-4 aus PROJ-2 in einem späteren Aufräum-Pass behoben werden; sobald ein Testkonto verfügbar ist, UI-Flows einmal manuell verifizieren
 
 ## Deployment
-_To be added by /deploy_
+
+Gemeinsam mit allen anderen P0/MVP-Features live deployed auf Vercel. Volle Deployment-Details (Produktions-URL, Env Vars, Post-Deployment-Test, Pre-Deployment-Fixes) siehe [PROJ-1](PROJ-1-supabase-infrastructure-setup.md#deployment).

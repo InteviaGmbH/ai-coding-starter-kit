@@ -1,8 +1,8 @@
 # PROJ-5: Personalanfrage-Workflow (erstellen & prüfen)
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-07-25
-**Last Updated:** 2026-07-25 (QA: 1 Low gefunden und behoben — production-ready)
+**Last Updated:** 2026-07-28 (Deployed: siehe Abschnitt "Deployment" unten)
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — `personnel_requests`-Tabelle, RLS
@@ -169,4 +169,5 @@ Eingeloggte Flows (Anfrage erstellen/bearbeiten/zurückziehen als Gemeinde, als 
 - **Empfehlung:** Sobald Test-Accounts für `municipality` und `dafinex_admin` verfügbar sind, den vollständigen Anfrage-Lebenszyklus (erstellen → bearbeiten → geprüft → gesperrt) einmal end-to-end manuell verifizieren
 
 ## Deployment
-_To be added by /deploy_
+
+Gemeinsam mit allen anderen P0/MVP-Features live deployed auf Vercel. Volle Deployment-Details (Produktions-URL, Env Vars, Post-Deployment-Test, Pre-Deployment-Fixes) siehe [PROJ-1](PROJ-1-supabase-infrastructure-setup.md#deployment).

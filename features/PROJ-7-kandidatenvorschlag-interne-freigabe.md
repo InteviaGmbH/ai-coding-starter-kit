@@ -1,8 +1,8 @@
 # PROJ-7: Kandidatenvorschlag & interne Freigabe
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-07-26
-**Last Updated:** 2026-07-26 (QA: 1 Low gefunden, geerbtes PROJ-1-RLS-Verhalten, kein Sicherheitsrisiko über die App — production-ready)
+**Last Updated:** 2026-07-28 (Deployed: siehe Abschnitt "Deployment" unten)
 
 ## Dependencies
 - Requires: PROJ-5 (Personalanfrage-Workflow) — eine Anfrage muss Status „geprüft" haben, bevor Kandidaten vorgeschlagen werden können
@@ -173,4 +173,5 @@ Der eigentliche Vorschlags-Workflow (vorschlagen → freigeben/ablehnen → zur�
 - **Empfehlung:** BUG-1 zusammen mit PROJ-1 BUG-5 (Column-Level-Protection) in einem gemeinsamen RLS-Härtungs-Pass behandeln; sobald ein `dafinex_admin`-Testkonto existiert, den vollständigen Vorschlags-Lebenszyklus einmal end-to-end manuell verifizieren
 
 ## Deployment
-_To be added by /deploy_
+
+Gemeinsam mit allen anderen P0/MVP-Features live deployed auf Vercel. Volle Deployment-Details (Produktions-URL, Env Vars, Post-Deployment-Test, Pre-Deployment-Fixes) siehe [PROJ-1](PROJ-1-supabase-infrastructure-setup.md#deployment).

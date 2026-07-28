@@ -1,8 +1,8 @@
 # PROJ-3: Gemeindenverwaltung
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-07-25
-**Last Updated:** 2026-07-25 (QA: 1 Medium gefunden und vor Auslieferung behoben — production-ready)
+**Last Updated:** 2026-07-28 (Deployed: siehe Abschnitt "Deployment" unten)
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — `municipalities`-Tabelle, RLS
@@ -159,4 +159,5 @@ Eingeloggte CRUD-Flows (Anlegen/Bearbeiten/Löschen einer Gemeinde, Lösch-Schut
 - **Empfehlung:** Sobald ein `dafinex_admin`-Testkonto verfügbar ist (z.B. nach dem PROJ-1-Bootstrap-Schritt), die UI-Flows einmal manuell/per E2E nachträglich verifizieren
 
 ## Deployment
-_To be added by /deploy_
+
+Gemeinsam mit allen anderen P0/MVP-Features live deployed auf Vercel. Volle Deployment-Details (Produktions-URL, Env Vars, Post-Deployment-Test, Pre-Deployment-Fixes) siehe [PROJ-1](PROJ-1-supabase-infrastructure-setup.md#deployment).

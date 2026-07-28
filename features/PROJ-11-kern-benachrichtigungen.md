@@ -1,8 +1,8 @@
 # PROJ-11: Kern-Benachrichtigungen
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-07-26
-**Last Updated:** 2026-07-26 (QA: 1 Low gefunden, kosmetische Badge-Ungenauigkeit ohne Sicherheitsrisiko — production-ready)
+**Last Updated:** 2026-07-28 (Deployed: siehe Abschnitt "Deployment" unten)
 
 ## Dependencies
 - Requires: PROJ-2 (Auth & Portal-Grundgerüst) — `notifications`-Tabelle, Portal-Shell
@@ -169,4 +169,5 @@ Das tatsächliche Erscheinungsbild der Glocke/Liste im Browser (Badge-Anzeige, P
 - **Empfehlung:** Migration bereits ausgeführt (siehe Migrationsstatus oben). Sobald Testkonten für alle Rollen existieren, das Glocken-Symbol einmal end-to-end visuell verifizieren; BUG-1 kann gesammelt mit den übrigen Low-Findings in einem späteren Aufräum-Pass behoben werden
 
 ## Deployment
-_To be added by /deploy_
+
+Gemeinsam mit allen anderen P0/MVP-Features live deployed auf Vercel. Volle Deployment-Details (Produktions-URL, Env Vars, Post-Deployment-Test, Pre-Deployment-Fixes) siehe [PROJ-1](PROJ-1-supabase-infrastructure-setup.md#deployment).

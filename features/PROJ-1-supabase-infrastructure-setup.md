@@ -1,8 +1,8 @@
 # PROJ-1: Supabase Infrastructure Setup
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-07-25
-**Last Updated:** 2026-07-25 (QA Approved: BUG-1–4 code- und live-verifiziert behoben; BUG-5/6 zurückgestellt, nicht blockierend)
+**Last Updated:** 2026-07-28 (Deployed: siehe Abschnitt "Deployment" unten)
 
 ## Dependencies
 - None (fundamentales Infrastruktur-Feature, alle weiteren Features bauen darauf auf)
@@ -325,4 +325,22 @@ Auf Nutzeranweisung behoben, in dieser Reihenfolge: BUG-1 + BUG-2 (gleiche Ursac
 **Production Ready:** **YES** — keine Critical/High-Bugs mehr offen. BUG-1–4 sind code- und live-verifiziert behoben. BUG-5 (Medium) und BUG-6 (Low) bleiben bewusst zurückgestellt für einen späteren QA-Durchgang; sie blockieren laut Schweregrad-Kriterium kein Production-Ready.
 
 ## Deployment
-_To be added by /deploy_
+
+- **Produktions-URL:** https://ai-coding-starter-kit-sand.vercel.app
+- **Deployed:** 2026-07-28
+- **Hosting:** Vercel (Next.js Framework Preset, Auto-Deploy bei Push auf `main`)
+- **Backend:** Bestehendes Supabase-Projekt (identisch mit dem beim E2E-Dry-Run genutzten Projekt), Migrationen bereits angewendet
+- **Env Vars in Vercel gesetzt:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+- **Supabase Auth URL Configuration:** Site URL und Redirect URLs vom Nutzer auf die Produktions-URL umgestellt
+- **Pre-Deployment-Fixes:**
+  - ESLint-Migration auf Flat Config (`eslint.config.mjs`), da Next.js 16 `next lint` entfernt hat und die alte `.eslintrc.json` mit ESLint 9 inkompatibel war — `npm run lint` lief zuvor gar nicht
+  - `.env.local.example` ergänzt um fehlenden `SUPABASE_SERVICE_ROLE_KEY` und als "required" statt "optional" markiert
+  - Security-Header (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Strict-Transport-Security`) in `next.config.ts` ergänzt gemäss `.claude/rules/security.md` — fehlten zunächst in Produktion
+- **Post-Deployment-Test (2026-07-28):**
+  - `npm run build` lokal grün
+  - Alle Kernseiten liefern HTTP 200: `/`, `/login`, `/register`, `/forgot-password`, `/reset-password`, `/api/health`
+  - Geschützte Routen (`/pending`, `/rejected`, `/internal/dashboard`, `/municipality/dashboard`, `/candidate/dashboard`) leiten unauthentifiziert korrekt auf `/login` um
+  - Login- und Registrierungsseite inhaltlich verifiziert (deutsches UI, korrekte Formularfelder, keine Fehleranzeigen)
+  - Alle vier Security-Header live verifiziert
+  - **Nicht getestet (kein Browser-Tool verfügbar):** interaktiver Login/Registrierungs-Flow mit echtem Formular-Submit, End-to-End-Datenbank-Schreibzugriff über die Live-URL — sollte manuell vom Nutzer einmal durchgeklickt werden
+- **Bekannte offene Punkte (nicht blockierend):** 11 vorbestehende ESLint-Fehler (unescaped quotes in mehreren Tabellen-Komponenten, `Math.random`-Purity-Hinweis in `sidebar.tsx`, `window.location.href`-Zuweisungen in den Auth-Formularen) — Empfehlung: in einem separaten `/qa`-Durchgang bereinigen

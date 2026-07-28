@@ -1,8 +1,8 @@
 # PROJ-8: Gemeinde-Interview & Annahme
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-07-26
-**Last Updated:** 2026-07-26 (Post-Approval-Regression BUG-3 gefunden und behoben durch echten E2E-Testlauf — production-ready)
+**Last Updated:** 2026-07-28 (Deployed: siehe Abschnitt "Deployment" unten)
 
 ## Dependencies
 - Requires: PROJ-7 (Kandidatenvorschlag & interne Freigabe) — nur intern freigegebene (`approved`) Vorschläge sind für die Gemeinde relevant
@@ -192,4 +192,5 @@ Der eigentliche Annahme-/Ablehnungs-Workflow im Browser konnte mangels aktivem `
 - **Empfehlung:** `npm test` (40/40) und `npm run build` weiterhin grün. Migration `20260726140000` erfolgreich ausgeführt (siehe Migrationsstatus). Der vollständige Annahme-Workflow wurde am 2026-07-26 in einem eigenständigen End-to-End-Testlauf mit echten Accounts erfolgreich verifiziert (inkl. dieses Fixes) — siehe `docs/e2e-dry-run-2026-07-26.md`. Damit ist die seit PROJ-2 dokumentierte Coverage-Lücke für diesen Workflow geschlossen
 
 ## Deployment
-_To be added by /deploy_
+
+Gemeinsam mit allen anderen P0/MVP-Features live deployed auf Vercel. Volle Deployment-Details (Produktions-URL, Env Vars, Post-Deployment-Test, Pre-Deployment-Fixes) siehe [PROJ-1](PROJ-1-supabase-infrastructure-setup.md#deployment).
