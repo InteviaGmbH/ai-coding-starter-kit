@@ -34,7 +34,8 @@
 | PROJ-17 | Vollständiges Nachrichtensystem | Roadmap | — | 2026-07-25 |
 | PROJ-18 | Alle Benachrichtigungstrigger + Erinnerungslogik | Roadmap | — | 2026-07-25 |
 | PROJ-19 | Vollständige Dashboards für alle Rollen | Roadmap | — | 2026-07-25 |
+| PROJ-20 | Kandidatenportal – Selbstverwaltung für Kandidaten | Planned | [PROJ-20](PROJ-20-kandidatenportal-selbstverwaltung.md) | 2026-07-28 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-20
+## Next Available ID: PROJ-21
