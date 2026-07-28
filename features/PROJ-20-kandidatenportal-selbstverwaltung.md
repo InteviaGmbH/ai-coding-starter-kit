@@ -2,7 +2,7 @@
 
 ## Status: Planned
 **Created:** 2026-07-28
-**Last Updated:** 2026-07-28
+**Last Updated:** 2026-07-28 (offene Frage zu certifications/languages geklärt — einfache text[]-Tag-Listen)
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — Schema, RLS, Storage
@@ -83,7 +83,7 @@
 
 ## Open Questions
 <!-- Unresolved questions from the spec interview. Close them in /refine when answered. -->
-- [ ] Sollen `certifications`/`languages` als einfache Text-Tag-Listen (wie das bestehende `skills text[]`) oder strukturierter erfasst werden (z.B. Zertifikat mit Ausstellungsdatum)? Empfehlung: einfache Text-Tag-Listen, konsistent mit dem bestehenden `skills`-Muster — strukturierte Variante kann bei Bedarf später per `/refine` nachgerüstet werden. Endgültige Entscheidung sollte vor `/architecture` getroffen werden.
+_Keine offenen Fragen._
 
 ## Decision Log
 <!-- Record of conscious decisions made and why. Added to by /write-spec and /architecture. -->
@@ -101,6 +101,7 @@
 | Verträge werden in die Einsatz-Detailansicht eingebettet, keine eigene „Verträge"-Seite | Konsistent mit dem bereits etablierten Muster im Gemeindeportal (`/municipality/assignments/[id]`) | 2026-07-28 |
 | Neue Felder werden in PROJ-4 nur lesend ergänzt, nicht editierbar durch internes Personal | Vermeidet Dateninkonsistenzen zwischen interner Bearbeitung und Selbstpflege durch den Kandidaten | 2026-07-28 |
 | Kandidaten-Telefonnummer wird neu eingeführt (existierte bisher nicht) | „Kontaktdaten" aus der Anfrage braucht ein Feld; kein bestehendes Feld vorhanden, kleinste sinnvolle Ergänzung analog zum bestehenden Gemeinde-Feld | 2026-07-28 |
+| `certifications`/`languages` als einfache `text[]`-Tag-Listen (wie bestehendes `skills`), ohne Zusatzfelder (kein Ausstellungsdatum, kein Sprachniveau) | Passt zum bestehenden `skills`-Muster, hält den Aufwand im Rahmen. Falls sich im Pilotbetrieb zeigt, dass z.B. ein Sprachniveau für besseres Matching gebraucht wird, kann das gezielt nachgerüstet werden | 2026-07-28 |
 
 ### Technical Decisions
 <!-- Added by /architecture -->
