@@ -20,7 +20,7 @@ export default async function CandidateDetailPage({
   const { data: candidate } = await supabase
     .from("candidates")
     .select(
-      "id, first_name, last_name, phone, skills, region, availability, source_type, cv_document_path, profile_id, availability_start, availability_end, max_workload_percent, certifications, languages, experience_years, preferred_regions"
+      "id, first_name, last_name, phone, skills, region, availability, source_type, cv_document_path, cv_uploaded_at, profile_id, availability_start, availability_end, max_workload_percent, certifications, languages, experience_years, preferred_regions"
     )
     .eq("id", id)
     .single()
@@ -162,6 +162,7 @@ export default async function CandidateDetailPage({
         candidateId={candidate.id}
         documentPath={candidate.cv_document_path}
         downloadUrl={downloadUrl}
+        uploadedAt={candidate.cv_uploaded_at}
         onSave={setCandidateDocumentPath}
       />
     </div>

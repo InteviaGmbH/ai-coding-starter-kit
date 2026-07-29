@@ -2,7 +2,7 @@
 
 ## Status: In Review
 **Created:** 2026-07-28
-**Last Updated:** 2026-07-29 (BUG-6 und BUG-9 aus dem QA-Durchgang behoben, siehe "QA Test Results" — BUG-7/8/10/11 noch offen)
+**Last Updated:** 2026-07-29 (BUG-6, BUG-8, BUG-9, BUG-10 aus dem QA-Durchgang behoben, siehe "QA Test Results" — BUG-7/11 noch offen)
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — Schema, RLS, Storage
@@ -292,13 +292,14 @@ Playwright-Browser wurden für diesen Durchgang installiert (`npx playwright ins
   3. Actual: keinerlei Erfolgs-Feedback, nur Abwesenheit eines Fehlers — BUG-5-Fix wurde nur für die Dokument-Karte nachgezogen, nicht für die anderen drei
 - **Priority:** Fix in next sprint
 
-#### BUG-8: Formulare synchronisieren sich nach `router.refresh()` nicht mit dem echten Serverstand
+#### BUG-8: Formulare synchronisieren sich nach `router.refresh()` nicht mit dem echten Serverstand — ✅ FIXED (2026-07-29)
 - **Severity:** Medium
 - **Steps to Reproduce:**
   1. Alle vier Profil-Karten nutzen `useForm({ defaultValues })` — das wird von react-hook-form nur beim ersten Mount übernommen
   2. `router.refresh()` rendert die Server-Komponente neu und übergibt neue Props, aber die Client-Komponente wird nicht neu gemountet und liest `defaultValues` nicht erneut ein
   3. Erwartet: nach erfolgreichem Speichern zeigt das Formular den tatsächlichen (neuen) Serverstand
   4. Actual: im Normalfall unsichtbar (gerade eingegebener Wert = neuer Serverwert), aber bei einer Diskrepanz (z.B. gleichzeitige interne Bearbeitung, siehe Edge Case "Last write wins", oder serverseitige Normalisierung) zeigt das Formular weiterhin den alten clientseitigen Stand, bis die Seite komplett neu geladen wird (F5)
+- **Fix:** Alle drei Formular-Karten (Kontaktdaten, Verfügbarkeit, Qualifikationen) rufen jetzt in einem `useEffect`, das auf `defaultValues` reagiert, `form.reset(defaultValues)` auf — dadurch übernimmt das Formular nach jedem `router.refresh()` zuverlässig den echten Serverstand statt des zuletzt lokal eingegebenen Werts.
 - **Priority:** Fix in next sprint
 
 #### BUG-9: Kein Erfolgs-/Fehler-Feedback für die non-atomare Zwei-Tabellen-Schreibung in `updateCandidateContact` — ✅ FIXED (2026-07-29)
@@ -311,13 +312,14 @@ Playwright-Browser wurden für diesen Durchgang installiert (`npx playwright ins
 - **Fix:** Neue Postgres-Funktion `update_own_candidate_contact()` (`20260729140000_atomic_candidate_contact_update.sql`) führt beide Updates in einem Funktionsaufruf aus — schlägt eines fehl, wird der gesamte Aufruf abgebrochen, keines der beiden Updates wirkt sich mehr aus. Bewusst ohne `SECURITY DEFINER`: die Funktion läuft weiterhin unter den Rechten des Aufrufers, RLS/Trigger-Schutz auf beiden Tabellen bleibt unverändert wirksam — nur Atomarität kommt hinzu. `updateCandidateContact` ruft jetzt `supabase.rpc(...)` statt zwei separater `.update()`-Aufrufe auf.
 - **Priority:** Nice to have (geringe Eintrittswahrscheinlichkeit, "Last write wins" ist im Projekt ohnehin akzeptierte Vereinfachung)
 
-#### BUG-10: Upload-Datum des CV wird nirgends angezeigt
+#### BUG-10: Upload-Datum des CV wird nirgends angezeigt — ✅ FIXED (2026-07-29)
 - **Severity:** Medium
 - **Steps to Reproduce:**
   1. AC verlangt explizit: "sieht einen Download-Link sowie das Upload-Datum"
   2. `CandidateDocumentCard` zeigt nur den Download-Link, kein Datum wird abgefragt oder gerendert
   3. Erwartet: Upload-Datum sichtbar
   4. Actual: fehlt komplett — Hinweis für die Umsetzung: nicht `candidates.updated_date` wiederverwenden (wird von jeder Feldänderung auf der Zeile berührt, nicht nur vom CV-Upload), sondern ein dediziertes Feld bräuchte es dafür
+- **Fix:** Neue dedizierte Spalte `candidates.cv_uploaded_at` (`20260729150000_candidate_document_uploaded_at.sql`), von beiden Upload-Pfaden gesetzt (`setOwnCandidateDocumentPath` und der internen `setCandidateDocumentPath`, damit auch interne Uploads das Datum korrekt aktualisieren). `CandidateDocumentCard` zeigt es jetzt neben dem Download-Link an.
 - **Priority:** Fix before deployment (fehlende, explizit geforderte AC)
 
 #### BUG-11 (pre-existing, nicht neu durch PROJ-20 verursacht): `/internal/candidates/[id]/page.tsx` prüft weiterhin keinen `error`

@@ -16,7 +16,7 @@ export default async function CandidateProfilePage() {
   const { data: candidate, error: candidateError } = await supabase
     .from("candidates")
     .select(
-      "id, first_name, last_name, phone, skills, certifications, languages, experience_years, preferred_regions, availability_start, availability_end, max_workload_percent, cv_document_path"
+      "id, first_name, last_name, phone, skills, certifications, languages, experience_years, preferred_regions, availability_start, availability_end, max_workload_percent, cv_document_path, cv_uploaded_at"
     )
     .eq("id", profile?.candidateId ?? "")
     .maybeSingle()
@@ -79,6 +79,7 @@ export default async function CandidateProfilePage() {
         candidateId={candidate.id}
         documentPath={candidate.cv_document_path}
         downloadUrl={downloadUrl}
+        uploadedAt={candidate.cv_uploaded_at}
         onSave={setOwnCandidateDocumentPath}
       />
     </div>

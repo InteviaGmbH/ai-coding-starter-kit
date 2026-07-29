@@ -189,7 +189,7 @@ export async function setOwnCandidateDocumentPath(
   const supabase = await createClient()
   const { data: updated, error } = await supabase
     .from("candidates")
-    .update({ cv_document_path: path })
+    .update({ cv_document_path: path, cv_uploaded_at: new Date().toISOString() })
     .eq("id", candidateId)
     .select("id")
     .maybeSingle()

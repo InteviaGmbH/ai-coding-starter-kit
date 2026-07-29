@@ -260,9 +260,12 @@ describe("candidate profile self-service actions", () => {
       const result = await setOwnCandidateDocumentPath(CANDIDATE_ID, `${CANDIDATE_ID}/cv.pdf`)
 
       expect(result).toEqual({ success: true })
-      expect(client.from("candidates").update).toHaveBeenCalledWith({
-        cv_document_path: `${CANDIDATE_ID}/cv.pdf`,
-      })
+      expect(client.from("candidates").update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cv_document_path: `${CANDIDATE_ID}/cv.pdf`,
+          cv_uploaded_at: expect.any(String),
+        })
+      )
     })
 
     it("reports failure when the update matches zero rows (e.g. blocked by RLS) without a Postgres error", async () => {

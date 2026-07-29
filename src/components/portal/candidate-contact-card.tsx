@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -36,6 +36,16 @@ export function CandidateContactCard({
     resolver: zodResolver(formSchema),
     defaultValues,
   })
+
+  // react-hook-form only applies `defaultValues` once, at mount.
+  // router.refresh() re-renders this Server-Component-supplied prop with
+  // fresh data but doesn't remount us, so without this the form would
+  // keep showing the pre-refresh client state instead of the true
+  // persisted values (e.g. after a concurrent internal edit).
+  useEffect(() => {
+    form.reset(defaultValues)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultValues])
 
   async function onSubmit(values: FormValues) {
     setError(null)

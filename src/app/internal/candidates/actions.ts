@@ -161,7 +161,7 @@ export async function setCandidateDocumentPath(id: string, path: string): Promis
   const supabase = await createClient()
   const { error } = await supabase
     .from("candidates")
-    .update({ cv_document_path: path })
+    .update({ cv_document_path: path, cv_uploaded_at: new Date().toISOString() })
     .eq("id", id)
 
   if (error) {

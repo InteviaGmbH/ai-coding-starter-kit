@@ -15,10 +15,17 @@ interface Props {
   candidateId: string
   documentPath: string | null
   downloadUrl: string | null
+  uploadedAt: string | null
   onSave: (candidateId: string, path: string) => Promise<{ success: boolean; error?: string }>
 }
 
-export function CandidateDocumentCard({ candidateId, documentPath, downloadUrl, onSave }: Props) {
+export function CandidateDocumentCard({
+  candidateId,
+  documentPath,
+  downloadUrl,
+  uploadedAt,
+  onSave,
+}: Props) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -97,6 +104,12 @@ export function CandidateDocumentCard({ candidateId, documentPath, downloadUrl, 
             <a href={downloadUrl} className="text-primary hover:underline" target="_blank" rel="noreferrer">
               Aktuelles Dokument herunterladen
             </a>
+            {uploadedAt && (
+              <span className="text-muted-foreground">
+                {" "}
+                (hochgeladen am {new Date(uploadedAt).toLocaleDateString("de-CH")})
+              </span>
+            )}
           </p>
         ) : (
           <p className="text-sm text-muted-foreground">Noch kein Dokument hochgeladen.</p>
