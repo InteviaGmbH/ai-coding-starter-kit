@@ -13,13 +13,17 @@ export default async function CandidateProfilePage() {
   const profile = await getCurrentProfile()
   const supabase = await createClient()
 
-  const { data: candidate } = await supabase
+  const { data: candidate, error: candidateError } = await supabase
     .from("candidates")
     .select(
       "id, first_name, last_name, phone, skills, certifications, languages, experience_years, preferred_regions, availability_start, availability_end, max_workload_percent, cv_document_path"
     )
     .eq("id", profile?.candidateId ?? "")
     .maybeSingle()
+
+  if (candidateError) {
+    console.error("Kandidatenprofil konnte nicht geladen werden:", candidateError)
+  }
 
   let downloadUrl: string | null = null
   if (candidate?.cv_document_path) {
