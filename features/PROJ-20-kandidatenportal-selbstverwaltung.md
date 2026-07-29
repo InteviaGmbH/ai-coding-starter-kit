@@ -2,7 +2,7 @@
 
 ## Status: In Review
 **Created:** 2026-07-28
-**Last Updated:** 2026-07-29 (BUG-6, BUG-8, BUG-9, BUG-10 aus dem QA-Durchgang behoben, siehe "QA Test Results" — BUG-7/11 noch offen)
+**Last Updated:** 2026-07-29 (Alle 6 QA-Bugs behoben (BUG-6–11); wartet auf Live-Verifikation durch den Nutzer vor erneutem `/qa`, siehe "QA Test Results")
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — Schema, RLS, Storage
@@ -284,12 +284,13 @@ Playwright-Browser wurden für diesen Durchgang installiert (`npx playwright ins
 - **Priority:** Fix before deployment
 - **Fix:** Beide Queries (Liste, Detail) sowie die `contracts`-Query auf der Detailseite prüfen jetzt `error` und loggen ihn. Auf der Detailseite wird `PGRST116` ("no rows", der erwartete Fall bei einem fremden/unbekannten Einsatz) explizit von echten Fehlern unterschieden, damit ein legitimer Zugriffsentzug nicht fälschlich als Fehler geloggt wird.
 
-#### BUG-7: Keine Erfolgsmeldung bei Kontaktdaten-/Verfügbarkeits-/Qualifikationen-Karte
+#### BUG-7: Keine Erfolgsmeldung bei Kontaktdaten-/Verfügbarkeits-/Qualifikationen-Karte — ✅ FIXED (2026-07-29)
 - **Severity:** Low
 - **Steps to Reproduce:**
   1. Auf `/candidate/profile` eine der drei Karten (ausser Dokument) speichern
   2. Erwartet: sichtbare Bestätigung, analog zur inzwischen gefixten `CandidateDocumentCard`
   3. Actual: keinerlei Erfolgs-Feedback, nur Abwesenheit eines Fehlers — BUG-5-Fix wurde nur für die Dokument-Karte nachgezogen, nicht für die anderen drei
+- **Fix:** Alle drei Karten zeigen jetzt "Änderungen gespeichert." nach erfolgreichem Speichern, analog zur Dokument-Karte.
 - **Priority:** Fix in next sprint
 
 #### BUG-8: Formulare synchronisieren sich nach `router.refresh()` nicht mit dem echten Serverstand — ✅ FIXED (2026-07-29)
@@ -322,17 +323,18 @@ Playwright-Browser wurden für diesen Durchgang installiert (`npx playwright ins
 - **Fix:** Neue dedizierte Spalte `candidates.cv_uploaded_at` (`20260729150000_candidate_document_uploaded_at.sql`), von beiden Upload-Pfaden gesetzt (`setOwnCandidateDocumentPath` und der internen `setCandidateDocumentPath`, damit auch interne Uploads das Datum korrekt aktualisieren). `CandidateDocumentCard` zeigt es jetzt neben dem Download-Link an.
 - **Priority:** Fix before deployment (fehlende, explizit geforderte AC)
 
-#### BUG-11 (pre-existing, nicht neu durch PROJ-20 verursacht): `/internal/candidates/[id]/page.tsx` prüft weiterhin keinen `error`
+#### BUG-11 (pre-existing, nicht neu durch PROJ-20 verursacht): `/internal/candidates/[id]/page.tsx` prüft weiterhin keinen `error` — ✅ FIXED (2026-07-29)
 - **Severity:** Low
 - **Steps to Reproduce:** Gleiches Muster wie BUG-6, aber vorbestehend seit PROJ-4; PROJ-20 hat die Select-Query um neue Spalten erweitert, ohne die Lücke zu schliessen
+- **Fix:** `error` wird jetzt geprüft und geloggt (mit derselben `PGRST116`-Ausnahme wie bei BUG-6, da ein unbekannter Kandidat via `notFound()` ein erwarteter, kein fehlerhafter Zustand ist).
 - **Priority:** Nice to have (ausserhalb des PROJ-20-Kernumfangs, aber da PROJ-20 diese Datei ohnehin bearbeitet hat, wäre es ein günstiger Zeitpunkt gewesen)
 
 ### Summary
-- **Acceptance Criteria:** 12 klar bestanden, 7 wahrscheinlich bestanden aber nicht live verifiziert (`~`), 2 mit Bug (Einsätze-Liste/Detail wegen BUG-6, CV-Datum wegen BUG-10)
-- **Bugs Found:** 6 total (0 Critical, 1 High, 3 Medium, 2 Low)
+- **Acceptance Criteria:** 12 klar bestanden, 7 wahrscheinlich bestanden aber nicht live verifiziert (`~`), 2 mit Bug (Einsätze-Liste/Detail wegen BUG-6, CV-Datum wegen BUG-10) — beide zugehörigen Bugs seither behoben, aber noch nicht erneut live verifiziert
+- **Bugs Found:** 6 total (0 Critical, 1 High, 3 Medium, 2 Low) — **alle 6 behoben** (siehe einzelne Bug-Einträge oben, jeweils mit Fix-Beschreibung)
 - **Security:** Pass — keine Authorization-/Injection-/XSS-Lücken gefunden; Rate-Limiting-Lücke ist bestehend und app-weit, nicht PROJ-20-spezifisch
-- **Production Ready:** **NO**
-- **Recommendation:** BUG-6 (High) und BUG-10 (fehlende, explizit geforderte AC) vor Deployment beheben. Danach dringend empfohlen: `/candidate/assignments` (Liste + Detail) sowie die drei bisher ungetesteten Speicher-Flows (Kontaktdaten, Verfügbarkeit, Qualifikationen) einmal live durchklicken, bevor auf „Approved" gesetzt wird — das Muster dieser Session (5 reale Bugs in den bisher tatsächlich getesteten Flows) rechtfertigt keine Annahme, dass ungetestete Flows fehlerfrei sind.
+- **Production Ready:** **Noch offen** — alle 6 gefundenen Bugs sind code-seitig behoben (Vitest 89/89, Build/Lint grün), aber `/candidate/assignments` (Liste + Detail) sowie die drei Speicher-Flows (Kontaktdaten, Verfügbarkeit, Qualifikationen) wurden noch nie live getestet. Der Nutzer klickt diese vor einem erneuten `/qa`-Durchgang selbst durch.
+- **Nächster Schritt:** Nutzer verifiziert die genannten Flows live in der echten App, danach erneuter `/qa`-Durchgang zur finalen Freigabe.
 
 ## Deployment
 _To be added by /deploy_

@@ -17,13 +17,17 @@ export default async function CandidateDetailPage({
   const { id } = await params
   const supabase = await createClient()
 
-  const { data: candidate } = await supabase
+  const { data: candidate, error: candidateError } = await supabase
     .from("candidates")
     .select(
       "id, first_name, last_name, phone, skills, region, availability, source_type, cv_document_path, cv_uploaded_at, profile_id, availability_start, availability_end, max_workload_percent, certifications, languages, experience_years, preferred_regions"
     )
     .eq("id", id)
     .single()
+
+  if (candidateError && candidateError.code !== "PGRST116") {
+    console.error("Kandidat konnte nicht geladen werden:", candidateError)
+  }
 
   if (!candidate) {
     notFound()

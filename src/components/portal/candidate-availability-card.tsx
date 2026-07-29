@@ -37,6 +37,7 @@ type FormValues = z.infer<typeof formSchema>
 export function CandidateAvailabilityCard({ defaultValues }: { defaultValues: FormValues }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const form = useForm<FormValues>({
@@ -56,6 +57,7 @@ export function CandidateAvailabilityCard({ defaultValues }: { defaultValues: Fo
 
   async function onSubmit(values: FormValues) {
     setError(null)
+    setSuccess(false)
     setLoading(true)
 
     const result = await updateCandidateAvailability(values as CandidateAvailabilityInput)
@@ -66,6 +68,7 @@ export function CandidateAvailabilityCard({ defaultValues }: { defaultValues: Fo
       return
     }
 
+    setSuccess(true)
     router.refresh()
   }
 
@@ -80,6 +83,11 @@ export function CandidateAvailabilityCard({ defaultValues }: { defaultValues: Fo
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            {success && (
+              <Alert>
+                <AlertDescription>Änderungen gespeichert.</AlertDescription>
               </Alert>
             )}
             <FormField

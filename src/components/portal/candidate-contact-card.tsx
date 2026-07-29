@@ -30,6 +30,7 @@ export function CandidateContactCard({
 }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const form = useForm<FormValues>({
@@ -49,6 +50,7 @@ export function CandidateContactCard({
 
   async function onSubmit(values: FormValues) {
     setError(null)
+    setSuccess(false)
     setLoading(true)
 
     const result = await updateCandidateContact(values as CandidateContactInput)
@@ -59,6 +61,7 @@ export function CandidateContactCard({
       return
     }
 
+    setSuccess(true)
     router.refresh()
   }
 
@@ -73,6 +76,11 @@ export function CandidateContactCard({
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            {success && (
+              <Alert>
+                <AlertDescription>Änderungen gespeichert.</AlertDescription>
               </Alert>
             )}
             <div>
