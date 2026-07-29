@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { setCandidateDocumentPath } from "@/app/internal/candidates/actions"
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB
 const ALLOWED_FILE_TYPES = ["application/pdf", "image/jpeg", "image/png"]
@@ -16,9 +15,10 @@ interface Props {
   candidateId: string
   documentPath: string | null
   downloadUrl: string | null
+  onSave: (candidateId: string, path: string) => Promise<{ success: boolean; error?: string }>
 }
 
-export function CandidateDocumentCard({ candidateId, documentPath, downloadUrl }: Props) {
+export function CandidateDocumentCard({ candidateId, documentPath, downloadUrl, onSave }: Props) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -53,7 +53,7 @@ export function CandidateDocumentCard({ candidateId, documentPath, downloadUrl }
       return
     }
 
-    const result = await setCandidateDocumentPath(candidateId, path)
+    const result = await onSave(candidateId, path)
     setUploading(false)
 
     if (!result.success) {

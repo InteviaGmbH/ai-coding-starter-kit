@@ -38,6 +38,7 @@ If your database already has the BUG-1–4 fixes but predates the features below
 - `migrations/20260726120000_contracts_internal_only.sql` (PROJ-10 — both contract document uploads are internal-only; replaces the PROJ-1 `contracts_update`/`contracts_documents_insert` policies that let the municipality/candidate write with no `with check` at all)
 - `migrations/20260726130000_notifications_new_request_broadcast.sql` (PROJ-11 — lets a municipality broadcast a "new request" notification to every active internal user)
 - `migrations/20260726140000_candidates_select_municipality_proposed.sql` (PROJ-8 regression fix, found via a full E2E dry run — municipalities had no read access at all to `candidates`, so the proposals page silently showed "Unbekannt"/"—" instead of the candidate's name/skills/region/availability)
+- `migrations/20260729090000_candidate_self_service_fields.sql` (PROJ-20 — adds `phone`/`availability_start`/`availability_end`/`max_workload_percent`/`preferred_regions`/`certifications`/`languages`/`experience_years` to `candidates`; adds a column-lockdown trigger so a candidate's self-update can only touch their own contact/availability/qualification fields, never `source_type`/`region`/`availability`/audit columns; adds read access so a candidate can see the municipality/request behind their own assignments)
 
 ## Future migrations
 Add new files to `migrations/` named `<timestamp>_<description>.sql` and run them the same way. Once the Supabase CLI is set up locally, `supabase db push` can apply them directly instead of the SQL Editor.

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CandidateDetailActions } from "@/components/portal/candidate-detail-actions"
 import { CandidateDocumentCard } from "@/components/portal/candidate-document-card"
+import { setCandidateDocumentPath } from "@/app/internal/candidates/actions"
 
 export const metadata: Metadata = { title: "Kandidat — Dafinex" }
 
@@ -19,7 +20,7 @@ export default async function CandidateDetailPage({
   const { data: candidate } = await supabase
     .from("candidates")
     .select(
-      "id, first_name, last_name, skills, region, availability, source_type, cv_document_path, profile_id"
+      "id, first_name, last_name, phone, skills, region, availability, source_type, cv_document_path, profile_id, availability_start, availability_end, max_workload_percent, certifications, languages, experience_years, preferred_regions"
     )
     .eq("id", id)
     .single()
@@ -88,10 +89,80 @@ export default async function CandidateDetailPage({
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Selbstpflege (vom Kandidaten selbst gepflegt)</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
+          <div>
+            <p className="text-muted-foreground">Telefonnummer</p>
+            <p>{candidate.phone || "—"}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Pensum</p>
+            <p>{candidate.max_workload_percent != null ? `${candidate.max_workload_percent}%` : "—"}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Verfügbar von / bis</p>
+            <p>
+              {candidate.availability_start || "—"}
+              {candidate.availability_end ? ` – ${candidate.availability_end}` : ""}
+            </p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Berufserfahrung</p>
+            <p>{candidate.experience_years != null ? `${candidate.experience_years} Jahre` : "—"}</p>
+          </div>
+          <div className="sm:col-span-2">
+            <p className="text-muted-foreground">Zertifikate</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {candidate.certifications && candidate.certifications.length > 0 ? (
+                candidate.certifications.map((c: string) => (
+                  <Badge key={c} variant="secondary">
+                    {c}
+                  </Badge>
+                ))
+              ) : (
+                <span>—</span>
+              )}
+            </div>
+          </div>
+          <div className="sm:col-span-2">
+            <p className="text-muted-foreground">Sprachen</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {candidate.languages && candidate.languages.length > 0 ? (
+                candidate.languages.map((l: string) => (
+                  <Badge key={l} variant="secondary">
+                    {l}
+                  </Badge>
+                ))
+              ) : (
+                <span>—</span>
+              )}
+            </div>
+          </div>
+          <div className="sm:col-span-2">
+            <p className="text-muted-foreground">Bevorzugte Regionen</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {candidate.preferred_regions && candidate.preferred_regions.length > 0 ? (
+                candidate.preferred_regions.map((r: string) => (
+                  <Badge key={r} variant="secondary">
+                    {r}
+                  </Badge>
+                ))
+              ) : (
+                <span>—</span>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <CandidateDocumentCard
         candidateId={candidate.id}
         documentPath={candidate.cv_document_path}
         downloadUrl={downloadUrl}
+        onSave={setCandidateDocumentPath}
       />
     </div>
   )

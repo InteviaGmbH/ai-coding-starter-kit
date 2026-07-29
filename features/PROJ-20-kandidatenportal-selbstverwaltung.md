@@ -1,8 +1,8 @@
 # PROJ-20: Kandidatenportal – Selbstverwaltung für Kandidaten
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-07-28
-**Last Updated:** 2026-07-29 (Tech Design ergänzt — siehe Abschnitt "Tech Design (Solution Architect)")
+**Last Updated:** 2026-07-29 (Implementiert — siehe "Implementation Notes")
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — Schema, RLS, Storage
@@ -170,6 +170,29 @@ Gespeichert in: bestehende Supabase-Datenbank (kein neuer Speicherort).
 
 ### D) Dependencies (packages to install)
 Keine neuen Packages — vollständig mit dem bestehenden Stack umsetzbar (Zod, react-hook-form, shadcn/ui-Komponenten, Supabase-Client).
+
+## Implementation Notes
+
+Vollständig implementiert (Datenbank, RLS, Server Actions, UI) in einem Durchgang, konsistent mit dem bisherigen Vorgehen in diesem Projekt (PROJ-3 bis PROJ-12 wurden ebenfalls jeweils komplett in einem `/frontend`-Durchgang umgesetzt statt frontend/backend zu trennen).
+
+**Datenbank (`supabase/migrations/20260729090000_candidate_self_service_fields.sql`):**
+- 8 neue Spalten auf `candidates`: `phone`, `availability_start`, `availability_end`, `max_workload_percent`, `preferred_regions`, `certifications`, `languages`, `experience_years` — alle optional, additiv
+- Check-Constraints: `max_workload_percent` 0–100, `availability_end >= availability_start` (falls beide gesetzt), `experience_years >= 0`
+- Neuer Trigger `enforce_candidate_self_update_columns`: schliesst die im Architecture-Gespräch gefundene RLS-Lücke vollständig — ein Kandidat kann beim Self-Update nur noch `first_name`, `last_name`, `phone`, `skills`, `cv_document_path` sowie die 7 neuen Felder ändern, nicht `id`, `profile_id`, `source_type`, `region`, `availability` (alt), `created_date`, `created_by_id`, `created_by`, `is_sample`
+- 2 neue Select-Policies (`personnel_requests_select_candidate_assigned`, `municipalities_select_candidate_assigned`): während der Implementierung festgestellt, dass ein Kandidat für "Eigene Einsätze mit Gemeinde-Name" bisher gar keinen Lesezugriff auf `personnel_requests`/`municipalities` hatte — analog zum bestehenden PROJ-8-Muster (umgekehrte Richtung) ergänzt
+
+**Server Actions (`src/app/candidate/profile/actions.ts`):** `updateCandidateContact` (aktualisiert zusätzlich `profiles.full_name`, damit der Portal-Header synchron bleibt), `updateCandidateAvailability`, `updateCandidateQualifications`, `setOwnCandidateDocumentPath` (verifiziert zusätzlich zur RLS explizit, dass die übergebene `candidateId` der eigenen entspricht). 12 neue Vitest-Tests in `actions.test.ts`, alle grün.
+
+**UI:**
+- `/candidate/profile` — eine Seite mit 4 Karten (Kontaktdaten, Verfügbarkeit, Fähigkeiten & Qualifikationen, Dokument)
+- `/candidate/assignments` (Liste) + `/candidate/assignments/[id]` (Detail, inkl. wiederverwendeter `MunicipalityContractCard`)
+- `CandidateDocumentCard` refaktoriert: nimmt die Speicher-Action jetzt als Prop entgegen, dadurch von interner Kandidatenverwaltung UND Kandidatenportal gemeinsam genutzt, keine Code-Duplikation
+- Navigation im Kandidatenportal um "Profil" und "Einsätze" ergänzt
+- Interne Kandidaten-Detailansicht (PROJ-4) um eine neue, rein lesende Karte "Selbstpflege" ergänzt (Telefonnummer, Pensum, Verfügbarkeitszeitraum, Berufserfahrung, Zertifikate, Sprachen, bevorzugte Regionen)
+
+**Verifikation:** `npm run build` grün, `npm run lint` ohne neue Fehler (11 vorbestehende, unveränderte Fehler aus dem Deploy bleiben bestehen), volle Vitest-Suite 87/87 grün (12 davon neu für PROJ-20).
+
+**Nicht durchgeführt (kein Browser-Tool verfügbar):** manuelles Durchklicken der neuen Seiten in einer echten Browser-Session — sollte vor `/qa` bzw. vor dem nächsten Deploy einmal manuell verifiziert werden.
 
 ## QA Test Results
 _To be added by /qa_
