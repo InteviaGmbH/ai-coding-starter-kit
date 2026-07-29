@@ -1,8 +1,8 @@
 # PROJ-20: Kandidatenportal – Selbstverwaltung für Kandidaten
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-07-28
-**Last Updated:** 2026-07-28 (offene Frage zu certifications/languages geklärt — einfache text[]-Tag-Listen)
+**Last Updated:** 2026-07-29 (Tech Design ergänzt — siehe Abschnitt "Tech Design (Solution Architect)")
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — Schema, RLS, Storage
@@ -107,12 +107,69 @@ _Keine offenen Fragen._
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Eine gemeinsame `/candidate/profile`-Seite mit mehreren Kartenbereichen statt drei getrennter Seiten für Profil/Verfügbarkeit/Fähigkeiten | Weniger Navigation, konsistent mit dem bereits etablierten Muster im Gemeindeportal (z.B. "Anfrage erstellen" als Dialog statt eigene Seite) | 2026-07-29 |
+| Bestehende Komponenten/Muster wiederverwenden statt neu bauen: `NotificationBell` (0 Aufwand, bereits vollständig fertig), Dokument-Upload-Muster aus `CandidateDocumentCard` (interne Kandidatenverwaltung), Einsatz-/Vertragsansicht aus dem Gemeindeportal (`assignments`-Tabelle + `ContractCard`) | Deutlich weniger Aufwand als Neubau, garantiert konsistentes Verhalten/Look&Feel zu bereits bewährten Mustern | 2026-07-29 |
+| Neue Kandidaten-Selbstpflege-Felder als zusätzliche, rein additive Spalten auf der bestehenden `candidates`-Tabelle (kein neues Datenbankschema/keine neue Tabelle) | Kein Eingriff in PROJ-4/PROJ-6, keine Migration bestehender Daten nötig | 2026-07-29 |
+| Neue Spalten-Sperre (Trigger/`with check`, analog zum bestehenden `profiles.municipality_id`/`candidate_id`-Lockdown-Muster aus PROJ-1) für die `candidates`-Tabelle beim Kandidaten-Self-Update | Sicherheitsfund: `candidates_update` erlaubt Kandidaten schon seit PROJ-1 row-level Self-Update ohne Spalteneinschränkung — bisher folgenlos, da keine Oberfläche das nutzte. PROJ-20 ist die erste Funktion, die tatsächlich von einem Kandidaten aus schreibt, daher jetzt der richtige Zeitpunkt, das zu schliessen: Kandidat darf nur `first_name`, `last_name`, `phone`, `skills`, `cv_document_path` sowie die neuen Felder ändern — nicht `id`, `profile_id`, `source_type`, `region`, `availability` (alt), `created_*`, `is_sample` | 2026-07-29 |
+| `skills` wird zusätzlich zum Kandidaten-Self-Update freigegeben (dual editierbar: Kandidat + intern via PROJ-4) | Explizit Teil der ursprünglichen Anfrage ("Fähigkeiten... skills, ..."); nutzt die bereits beschlossene "Last write wins"-Konfliktregel | 2026-07-29 |
+| Telefonnummer wird auf der `candidates`-Tabelle ergänzt (nicht auf `profiles`) | Konsistent damit, wie `municipalities.contact_phone` bereits entitätsspezifisch (nicht auf `profiles`) abgelegt ist | 2026-07-29 |
+| Skills/Zertifikate/Sprachen weiterhin als einfaches kommagetrenntes Text-Eingabefeld (wie im bestehenden internen Kandidatenformular), keine neue Tag-Input-Komponente | Kein neues UI-Paradigma, kein zusätzliches Package nötig | 2026-07-29 |
+| CV-Ersatz-Upload nutzt eine neue, candidate-scoped Server Action (nicht die bestehende interne `setCandidateDocumentPath`) | Die interne Action ist für `internal_coordinator`/`dafinex_admin` gedacht; eine neue Action stellt sicher, dass ein Kandidat nur seine eigene `candidates`-Zeile referenzieren kann | 2026-07-29 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### A) Component Structure
+
+```
+Kandidatenportal (erweitert)
+├── Navigation: Dashboard | Profil | Einsätze   (bisher nur "Dashboard")
+│
+├── Dashboard (bestehend, unverändert)
+│
+├── Profil (neu) — eine Seite, mehrere Kartenbereiche
+│   ├── Karte "Kontaktdaten" — Name, Telefonnummer (editierbar), E-Mail (nur Anzeige)
+│   ├── Karte "Verfügbarkeit" — Pensum in %, Verfügbar von/bis (editierbar)
+│   ├── Karte "Fähigkeiten & Qualifikationen" — Skills, Zertifikate, Sprachen,
+│   │     Berufserfahrung (Jahre), bevorzugte Regionen (editierbar)
+│   └── Karte "Dokument" — aktuelles CV (Download-Link) + Upload-Feld zum Ersetzen
+│
+├── Einsätze (neu)
+│   ├── Liste eigener Einsätze (Status, Zeitraum, Gemeinde) — analog Gemeindeportal
+│   └── Einsatzdetail (neu)
+│       ├── Einsatz-Informationen
+│       └── eingebettete Vertrags-Karte (Status, Download-Link) — kein eigenes Menü
+│
+└── Benachrichtigungen — bereits vollständig vorhanden (Glocke im Header, alle Portale) — keine neue Arbeit
+```
+
+### B) Data Model (plain language)
+
+Erweiterung der bestehenden **`candidates`-Tabelle** um folgende zusätzliche, alle optionale Felder:
+- Telefonnummer (Text)
+- Verfügbar von / Verfügbar bis (je ein Datum)
+- Pensum in Prozent (Zahl, 0–100)
+- Bevorzugte Regionen (Liste von Text-Einträgen) — zusätzlich zur bestehenden einzelnen "Region", die unverändert bleibt
+- Zertifikate (Liste von Text-Einträgen)
+- Sprachen (Liste von Text-Einträgen)
+- Berufserfahrung in Jahren (Zahl, nicht negativ)
+
+Keine neue Tabelle nötig — alles auf der bestehenden `candidates`-Zeile des Kandidaten. Die bestehenden Felder `region`, `availability` (Freitext) und die `profiles`-Tabelle bleiben strukturell unverändert; `skills` wird zusätzlich zur bestehenden internen Bearbeitung auch vom Kandidaten selbst bearbeitbar.
+
+Gespeichert in: bestehende Supabase-Datenbank (kein neuer Speicherort).
+
+### C) Tech Decisions (justified for PM)
+
+1. **Bestehende Komponenten wiederverwenden statt neu bauen.** Die Benachrichtigungs-Glocke ist bereits fertig (0 Aufwand). Das Dokument-Upload-Verhalten und die Einsatz-/Vertragsansicht werden vom bereits bewährten internen bzw. Gemeindeportal-Muster übernommen. Das spart Aufwand und garantiert, dass sich das neue Portal gleich anfühlt wie die bestehenden.
+2. **Eine "Profil"-Seite statt drei getrennter Seiten.** Weniger Navigation für eine überschaubare Datenmenge, konsistent mit dem bereits etablierten, bewusst einfachen Muster im Gemeindeportal.
+3. **Rein additive Datenbank-Erweiterung.** Es wird nichts an bestehenden Feldern geändert oder migriert — dadurch besteht kein Risiko für die bereits laufende interne Kandidatenverwaltung (PROJ-4) oder die Kandidatensuche (PROJ-6).
+4. **Neue Sicherheits-Absicherung beim Speichern.** Es wird zusätzlich sichergestellt, dass ein Kandidat wirklich nur die für ihn vorgesehenen Felder ändern kann — nicht z.B. seine Herkunftsart oder interne Kennzeichnungen. Dieselbe bewährte Absicherung existiert bereits für das Profil-Konto selbst.
+5. **Kein neues UI-Paradigma.** Skills/Zertifikate/Sprachen werden wie bereits im internen Kandidatenformular als einfache kommagetrennte Texteingabe erfasst — kein neues Package, keine neue Komponente nötig.
+
+### D) Dependencies (packages to install)
+Keine neuen Packages — vollständig mit dem bestehenden Stack umsetzbar (Zod, react-hook-form, shadcn/ui-Komponenten, Supabase-Client).
 
 ## QA Test Results
 _To be added by /qa_
