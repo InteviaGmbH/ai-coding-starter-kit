@@ -40,28 +40,37 @@ export function CandidateDocumentCard({ candidateId, documentPath, downloadUrl, 
     }
 
     setUploading(true)
-    const supabase = createClient()
-    const path = `${candidateId}/${file.name}`
 
-    const { error: uploadError } = await supabase.storage
-      .from("candidate-documents")
-      .upload(path, file, { upsert: true })
+    try {
+      const supabase = createClient()
+      const path = `${candidateId}/${file.name}`
 
-    if (uploadError) {
+      const { error: uploadError } = await supabase.storage
+        .from("candidate-documents")
+        .upload(path, file, { upsert: true })
+
+      if (uploadError) {
+        const isTooLarge = /size|gross|large|payload/i.test(uploadError.message)
+        setError(
+          isTooLarge
+            ? "Datei zu gross. Maximal 10 MB erlaubt."
+            : "Datei konnte nicht hochgeladen werden. Bitte versuche es erneut."
+        )
+        return
+      }
+
+      const result = await onSave(candidateId, path)
+      if (!result.success) {
+        setError(result.error ?? "Dokument-Pfad konnte nicht gespeichert werden.")
+        return
+      }
+
+      router.refresh()
+    } catch {
+      setError("Datei konnte nicht hochgeladen werden. Bitte versuche es erneut.")
+    } finally {
       setUploading(false)
-      setError("Datei konnte nicht hochgeladen werden.")
-      return
     }
-
-    const result = await onSave(candidateId, path)
-    setUploading(false)
-
-    if (!result.success) {
-      setError(result.error ?? "Dokument-Pfad konnte nicht gespeichert werden.")
-      return
-    }
-
-    router.refresh()
   }
 
   return (
