@@ -1,8 +1,8 @@
 # PROJ-20: Kandidatenportal – Selbstverwaltung für Kandidaten
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-07-28
-**Last Updated:** 2026-07-29 (BUG-5 live gefunden und behoben — stiller 0-Zeilen-Treffer bei candidates-Updates + fehlende Erfolgsmeldung, siehe "Implementation Notes")
+**Last Updated:** 2026-07-29 (QA durchgeführt — 6 weitere Bugs gefunden, u.a. 1 High. Nicht production-ready, siehe "QA Test Results")
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — Schema, RLS, Storage
@@ -205,7 +205,130 @@ Vollständig implementiert (Datenbank, RLS, Server Actions, UI) in einem Durchga
 **BUG-5 (Live gefunden, behoben):** Nach Behebung von BUG-4 kam kein 403 mehr, aber es erschien weder eine Erfolgs- noch eine Fehlermeldung, und nach einem F5-Reload war das neue Dokument nicht übernommen. Ursache: `setOwnCandidateDocumentPath` (und die drei anderen PROJ-20-Server-Actions) prüften zwar den Supabase-`error`, aber ein `.update(...).eq(...)` **ohne** `.select()` gibt bei PostgREST nie zurück, wie viele Zeilen tatsächlich betroffen waren — `error` bleibt `null`, selbst wenn RLS die Zeile lautlos mit 0 Treffern übergangen hätte. Ein stiller "0-Zeilen-Treffer" wäre also nicht von einem echten Erfolg unterscheidbar gewesen. Fix: alle vier Actions in `src/app/candidate/profile/actions.ts` hängen jetzt `.select("id").maybeSingle()` an und werten `!updated` als Fehler; neuer Test deckt den 0-Zeilen-Fall ab. Zusätzlich zeigt `CandidateDocumentCard` jetzt eine explizite Erfolgsmeldung ("Dokument erfolgreich hochgeladen.") nach einem tatsächlich erfolgreichen Speichern an — vorher gab es dafür gar keine UI-Rückmeldung.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-07-29
+**App URL:** Produktion (https://ai-coding-starter-kit-sand.vercel.app) für BUG-1–5 (siehe Implementation Notes, live mit dem Nutzer gemeinsam debuggt); ergänzender Code-Audit + Vitest für diesen QA-Durchgang
+**Tester:** QA Engineer (AI)
+
+### Wichtiger Hinweis zur Testmethode
+
+In dieser Umgebung ist kein Browser-Tool verfügbar, und es existiert keine `.env.local` mit echten Supabase-Zugangsdaten (Playwright-E2E-Lauf gegen `localhost:3000` schlägt entsprechend fehl — geprüft, siehe unten). Die Testabdeckung dieses Durchgangs setzt sich zusammen aus:
+1. **Bereits live verifiziert** (durch den Nutzer, im Rahmen der Implementierung): Profil-Laden, Dashboard-Kennzahlen, CV-Upload/-Ersetzen inkl. Fehlerfälle — nach BUG-1 bis BUG-5 bestätigt funktionierend.
+2. **Vitest** (gemockter Supabase-Client): 13 Tests für alle vier Server-Actions in `src/app/candidate/profile/actions.ts`, alle grün.
+3. **Manueller Code-Audit** (dieser QA-Durchgang): Zeile-für-Zeile-Review aller PROJ-20-Dateien, gezielt nach demselben Bug-Muster gesucht, das BUG-1–5 verursacht hat (ungeprüfte `error`-Werte, RLS-Lücken) — siehe neue Funde unten.
+4. **Nicht live getestet:** `/candidate/assignments` (Liste + Detail), die Speicher-Flows von Kontaktdaten-/Verfügbarkeits-/Qualifikationen-Karte, sowie die PROJ-4-Ergänzung. Angesichts des etablierten Musters dieser Session (5 von 5 bisher tatsächlich getesteten Flows hatten reale Bugs) ist eine hohe Wahrscheinlichkeit weiterer Probleme in diesen ungetesteten Pfaden nicht auszuschliessen — das ist der Kern der Nicht-Bereit-Empfehlung unten.
+
+Playwright-Browser wurden für diesen Durchgang installiert (`npx playwright install chromium`); ein Testlauf scheiterte am fehlenden `NEXT_PUBLIC_SUPABASE_URL`/`_ANON_KEY` in dieser Umgebung. Neue Redirect-Tests für die drei neuen Routen wurden dennoch geschrieben (`tests/PROJ-20-kandidatenportal-selbstverwaltung.spec.ts`), konsistent mit dem bereits etablierten Muster aus PROJ-2/9 (authentifizierte Flows mit vorausgesetzten Testdaten werden dort bewusst nicht per Playwright abgedeckt, sondern per Vitest + Code-Review — siehe Kommentar in `tests/PROJ-9-*.spec.ts`).
+
+### Acceptance Criteria Status
+
+#### Eigenes Profil
+- [x] Name/Telefon/E-Mail-Anzeige — Code-Review bestanden, Profil-Laden live bestätigt (nach BUG-1-Fix)
+- [~] Name/Telefon bearbeiten & speichern — Vitest bestanden, **nicht live getestet**; siehe BUG-8 (Formular synchronisiert sich nach Speichern nicht zwingend mit Serverstand)
+- [x] Leeres Namensfeld → Validierungsfehler — Vitest bestanden (Client- + Server-Zod)
+- [x] E-Mail nicht editierbar — Code-Review bestanden (reines Anzeige-Feld, kein Input)
+
+#### Verfügbarkeit
+- [~] Pensum + Zeitraum speichern — Vitest bestanden, **nicht live getestet**
+- [x] Enddatum vor Startdatum → Fehler — Vitest bestanden (Client- + Server-seitig)
+- [x] Pensum ausserhalb 0–100 → Fehler — Vitest bestanden
+- [x] Leere Verfügbarkeit → leere Felder statt Fehler — Code-Review bestanden
+
+#### Fähigkeiten & Qualifikationen
+- [~] Bearbeiten/speichern, überall sichtbar — Vitest bestanden, **nicht live getestet**; überall-sichtbar-Teil (PROJ-4/PROJ-6 lesen dieselbe `skills`-Spalte) code-bestätigt
+- [x] Negative Berufserfahrung → Fehler — Vitest bestanden
+
+#### Eigene Einsätze
+- [ ] BUG: Liste zeigt nur eigene Einsätze mit Gemeinde-Name — **nicht live getestet**; Code-Audit fand BUG-6 (siehe unten)
+- [ ] BUG: Leere Liste → Hinweistext — funktioniert technisch, aber durch BUG-6 nicht von einem echten Fehler unterscheidbar
+- [~] Detailseite mit eingebetteter Vertrags-Karte — **nicht live getestet**, Code-Review bestanden (wiederverwendet bewährte `MunicipalityContractCard`)
+- [x] Fremder Einsatz → Zugriff verweigert — Code-Review bestanden (RLS + `.single()` + `notFound()`), Mechanismus korrekt, aber **nicht live getestet**
+
+#### Dokumente (CV)
+- [ ] BUG: Download-Link **und Upload-Datum** — nur der Download-Link ist vorhanden, das Upload-Datum wird nirgends abgerufen oder angezeigt (siehe BUG-10)
+- [x] CV erfolgreich ersetzt, überschreibt altes — **live bestätigt** nach BUG-2–5-Fixes
+- [x] Falsches Format/zu gross → Fehlermeldung — **live bestätigt** nach BUG-2-Fix
+
+#### Benachrichtigungen
+- [x] Nur eigene Benachrichtigungen — geerbt von PROJ-11 (unverändert, bereits produktiv), keine neue PROJ-20-Logik
+- [x] Als gelesen markieren — geerbt von PROJ-11, keine neue PROJ-20-Logik
+
+#### Interne Sichtbarkeit (PROJ-4-Ergänzung)
+- [~] Neue Felder read-only sichtbar für internes Personal — Code-Review bestanden, **nicht live getestet**
+
+### Edge Cases Status
+- [x] Kein `candidateId` → verständlicher Hinweis (Code-Review)
+- [~] Last write wins bei gleichzeitiger Bearbeitung — auf DB-Ebene korrekt, aber siehe BUG-8 (Client-Formular zeigt danach evtl. nicht den echten Serverstand)
+- [~] Netzwerkabbruch während CV-Upload — plausibel korrekt (Supabase-Storage-Semantik), nicht spezifisch getestet
+- [x] pending/rejected-Redirect — geerbtes PROJ-2-Verhalten, unverändert
+- [x] Fremder Einsatz/Vertrag per direkter URL → Zugriff verweigert (Code-Review, siehe oben)
+
+### Security Audit Results
+- [x] Authentication: `/candidate/*` weiterhin vollständig hinter Login-Redirect (PROJ-2-Layout-Gate, unverändert wiederverwendet)
+- [x] Authorization/Horizontal Privilege Escalation: Spalten-Sperre (Trigger) + RLS + `setOwnCandidateDocumentPath`-Defense-in-Depth-Check geprüft, keine Lücke gefunden. BUG-6 ist ein Debugging-/UX-Problem, **kein** Security-Bypass (RLS blockiert weiterhin korrekt, sie meldet es nur nicht sichtbar)
+- [x] Input-Validierung: Zod client- und serverseitig auf allen 4 Actions + DB-CHECK-Constraints als dritte Schicht (Pensum 0–100, Berufserfahrung ≥0, Datumsbereich) — dreifache Verteidigungslinie bestätigt
+- [x] XSS: durchgängig React-Standard-Escaping, kein `dangerouslySetInnerHTML` in neuem Code
+- [x] SQL-Injection: durchgängig parametrisiert über Supabase-Client
+- [x] Mass Assignment: Actions schreiben explizit benannte Spalten, kein Spread von Client-Input in `.update()`
+- [ ] Rate Limiting: nicht vorhanden — bestehende, App-weite Lücke (nicht PROJ-20-spezifisch, betrifft z.B. auch Login), separat zu adressieren
+
+### Bugs Found
+
+#### BUG-6: Ungeprüfter Supabase-`error` in `/candidate/assignments` (Liste + Detail)
+- **Severity:** High
+- **Steps to Reproduce:**
+  1. `/candidate/assignments/page.tsx:15` und `/candidate/assignments/[id]/page.tsx:21` destructurieren nur `{ data }`, nie `error`
+  2. Bei einem echten Query-Fehler (RLS-Problem, Netzwerk, etc.) zeigt die Liste "Noch keine Einsätze" statt eines Fehlers; die Detailseite zeigt eine falsche 404 statt eines Server-Fehlers
+  3. Erwartet: Fehler wird geloggt und/oder sichtbar gemacht, nicht als leerer/falscher Zustand maskiert
+  4. Actual: Exakt dasselbe Muster wie BUG-1 (dieser Spec) und PROJ-8-BUG-3/PROJ-12-BUG-1 (eigenes Audit) — dieser konkrete Pfad wurde aber nie live getestet
+- **Priority:** Fix before deployment
+
+#### BUG-7: Keine Erfolgsmeldung bei Kontaktdaten-/Verfügbarkeits-/Qualifikationen-Karte
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Auf `/candidate/profile` eine der drei Karten (ausser Dokument) speichern
+  2. Erwartet: sichtbare Bestätigung, analog zur inzwischen gefixten `CandidateDocumentCard`
+  3. Actual: keinerlei Erfolgs-Feedback, nur Abwesenheit eines Fehlers — BUG-5-Fix wurde nur für die Dokument-Karte nachgezogen, nicht für die anderen drei
+- **Priority:** Fix in next sprint
+
+#### BUG-8: Formulare synchronisieren sich nach `router.refresh()` nicht mit dem echten Serverstand
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Alle vier Profil-Karten nutzen `useForm({ defaultValues })` — das wird von react-hook-form nur beim ersten Mount übernommen
+  2. `router.refresh()` rendert die Server-Komponente neu und übergibt neue Props, aber die Client-Komponente wird nicht neu gemountet und liest `defaultValues` nicht erneut ein
+  3. Erwartet: nach erfolgreichem Speichern zeigt das Formular den tatsächlichen (neuen) Serverstand
+  4. Actual: im Normalfall unsichtbar (gerade eingegebener Wert = neuer Serverwert), aber bei einer Diskrepanz (z.B. gleichzeitige interne Bearbeitung, siehe Edge Case "Last write wins", oder serverseitige Normalisierung) zeigt das Formular weiterhin den alten clientseitigen Stand, bis die Seite komplett neu geladen wird (F5)
+- **Priority:** Fix in next sprint
+
+#### BUG-9: Kein Erfolgs-/Fehler-Feedback für die non-atomare Zwei-Tabellen-Schreibung in `updateCandidateContact`
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. `updateCandidateContact` schreibt zuerst `candidates` (first_name/last_name/phone), danach separat `profiles.full_name`
+  2. Wenn der erste Schritt gelingt, aber der zweite fehlschlägt, meldet die Funktion `{success:false}` — aber `candidates` wurde bereits geändert
+  3. Erwartet: entweder beide Schreibungen gelingen oder keine (Transaktion), oder der Nutzer wird über den Teilerfolg informiert
+  4. Actual: stiller Datendrift zwischen `candidates.first_name/last_name` und `profiles.full_name` möglich (Portal-Header zeigt dann einen anderen Namen als das Profil)
+- **Priority:** Nice to have (geringe Eintrittswahrscheinlichkeit, "Last write wins" ist im Projekt ohnehin akzeptierte Vereinfachung)
+
+#### BUG-10: Upload-Datum des CV wird nirgends angezeigt
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. AC verlangt explizit: "sieht einen Download-Link sowie das Upload-Datum"
+  2. `CandidateDocumentCard` zeigt nur den Download-Link, kein Datum wird abgefragt oder gerendert
+  3. Erwartet: Upload-Datum sichtbar
+  4. Actual: fehlt komplett — Hinweis für die Umsetzung: nicht `candidates.updated_date` wiederverwenden (wird von jeder Feldänderung auf der Zeile berührt, nicht nur vom CV-Upload), sondern ein dediziertes Feld bräuchte es dafür
+- **Priority:** Fix before deployment (fehlende, explizit geforderte AC)
+
+#### BUG-11 (pre-existing, nicht neu durch PROJ-20 verursacht): `/internal/candidates/[id]/page.tsx` prüft weiterhin keinen `error`
+- **Severity:** Low
+- **Steps to Reproduce:** Gleiches Muster wie BUG-6, aber vorbestehend seit PROJ-4; PROJ-20 hat die Select-Query um neue Spalten erweitert, ohne die Lücke zu schliessen
+- **Priority:** Nice to have (ausserhalb des PROJ-20-Kernumfangs, aber da PROJ-20 diese Datei ohnehin bearbeitet hat, wäre es ein günstiger Zeitpunkt gewesen)
+
+### Summary
+- **Acceptance Criteria:** 12 klar bestanden, 7 wahrscheinlich bestanden aber nicht live verifiziert (`~`), 2 mit Bug (Einsätze-Liste/Detail wegen BUG-6, CV-Datum wegen BUG-10)
+- **Bugs Found:** 6 total (0 Critical, 1 High, 3 Medium, 2 Low)
+- **Security:** Pass — keine Authorization-/Injection-/XSS-Lücken gefunden; Rate-Limiting-Lücke ist bestehend und app-weit, nicht PROJ-20-spezifisch
+- **Production Ready:** **NO**
+- **Recommendation:** BUG-6 (High) und BUG-10 (fehlende, explizit geforderte AC) vor Deployment beheben. Danach dringend empfohlen: `/candidate/assignments` (Liste + Detail) sowie die drei bisher ungetesteten Speicher-Flows (Kontaktdaten, Verfügbarkeit, Qualifikationen) einmal live durchklicken, bevor auf „Approved" gesetzt wird — das Muster dieser Session (5 reale Bugs in den bisher tatsächlich getesteten Flows) rechtfertigt keine Annahme, dass ungetestete Flows fehlerfrei sind.
 
 ## Deployment
 _To be added by /deploy_
