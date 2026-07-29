@@ -21,6 +21,7 @@ interface Props {
 export function CandidateDocumentCard({ candidateId, documentPath, downloadUrl, onSave }: Props) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
   const [uploading, setUploading] = useState(false)
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -29,6 +30,7 @@ export function CandidateDocumentCard({ candidateId, documentPath, downloadUrl, 
     if (!file) return
 
     setError(null)
+    setSuccess(false)
 
     if (!ALLOWED_FILE_TYPES.includes(file.type)) {
       setError("Nur PDF, JPG oder PNG erlaubt.")
@@ -65,6 +67,7 @@ export function CandidateDocumentCard({ candidateId, documentPath, downloadUrl, 
         return
       }
 
+      setSuccess(true)
       router.refresh()
     } catch {
       setError("Datei konnte nicht hochgeladen werden. Bitte versuche es erneut.")
@@ -82,6 +85,11 @@ export function CandidateDocumentCard({ candidateId, documentPath, downloadUrl, 
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {success && (
+          <Alert>
+            <AlertDescription>Dokument erfolgreich hochgeladen.</AlertDescription>
           </Alert>
         )}
         {documentPath && downloadUrl ? (

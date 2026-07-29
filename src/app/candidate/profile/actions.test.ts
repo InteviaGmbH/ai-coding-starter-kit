@@ -17,13 +17,24 @@ const activeCandidateProfile = {
 
 function mockSupabaseClient(opts?: {
   candidatesUpdateError?: { message: string } | null
+  candidatesUpdateMatchedZeroRows?: boolean
   profilesUpdateError?: { message: string } | null
 }) {
   const candidatesUpdateError = opts?.candidatesUpdateError ?? null
+  const matchedZeroRows = opts?.candidatesUpdateMatchedZeroRows ?? false
   const profilesUpdateError = opts?.profilesUpdateError ?? null
 
   const candidates = {
-    update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: candidatesUpdateError })) })),
+    update: vi.fn(() => ({
+      eq: vi.fn(() => ({
+        select: vi.fn(() => ({
+          maybeSingle: vi.fn(async () => ({
+            data: candidatesUpdateError || matchedZeroRows ? null : { id: CANDIDATE_ID },
+            error: candidatesUpdateError,
+          })),
+        })),
+      })),
+    })),
   }
 
   const profiles = {
@@ -238,6 +249,23 @@ describe("candidate profile self-service actions", () => {
       expect(result).toEqual({ success: true })
       expect(client.from("candidates").update).toHaveBeenCalledWith({
         cv_document_path: `${CANDIDATE_ID}/cv.pdf`,
+      })
+    })
+
+    it("reports failure when the update matches zero rows (e.g. blocked by RLS) without a Postgres error", async () => {
+      vi.doMock("@/lib/auth/get-current-profile", () => ({
+        getCurrentProfile: async () => activeCandidateProfile,
+      }))
+      vi.doMock("@/lib/supabase/server", () => ({
+        createClient: async () => mockSupabaseClient({ candidatesUpdateMatchedZeroRows: true }),
+      }))
+
+      const { setOwnCandidateDocumentPath } = await import("./actions")
+      const result = await setOwnCandidateDocumentPath(CANDIDATE_ID, `${CANDIDATE_ID}/cv.pdf`)
+
+      expect(result).toEqual({
+        success: false,
+        error: "Dokument-Pfad konnte nicht gespeichert werden.",
       })
     })
   })

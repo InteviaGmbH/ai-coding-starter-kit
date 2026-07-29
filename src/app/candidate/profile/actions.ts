@@ -51,7 +51,7 @@ export async function updateCandidateContact(input: CandidateContactInput): Prom
 
   const supabase = await createClient()
 
-  const { error: candidateError } = await supabase
+  const { data: updatedCandidate, error: candidateError } = await supabase
     .from("candidates")
     .update({
       first_name: parsed.data.firstName,
@@ -59,8 +59,13 @@ export async function updateCandidateContact(input: CandidateContactInput): Prom
       phone: parsed.data.phone || null,
     })
     .eq("id", actor.candidateId)
+    .select("id")
+    .maybeSingle()
 
-  if (candidateError) {
+  // A plain `.update()` without `.select()` never reports how many rows
+  // were actually affected — `error` stays null even if RLS silently
+  // matched zero rows. Checking the returned row catches that case too.
+  if (candidateError || !updatedCandidate) {
     return { success: false, error: "Änderungen konnten nicht gespeichert werden." }
   }
 
@@ -110,7 +115,7 @@ export async function updateCandidateAvailability(
   }
 
   const supabase = await createClient()
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("candidates")
     .update({
       max_workload_percent: parsed.data.maxWorkloadPercent ?? null,
@@ -118,8 +123,10 @@ export async function updateCandidateAvailability(
       availability_end: parsed.data.availabilityEnd || null,
     })
     .eq("id", actor.candidateId)
+    .select("id")
+    .maybeSingle()
 
-  if (error) {
+  if (error || !updated) {
     return { success: false, error: "Änderungen konnten nicht gespeichert werden." }
   }
 
@@ -154,7 +161,7 @@ export async function updateCandidateQualifications(
   }
 
   const supabase = await createClient()
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("candidates")
     .update({
       skills: toTagArray(parsed.data.skills),
@@ -164,8 +171,10 @@ export async function updateCandidateQualifications(
       preferred_regions: toTagArray(parsed.data.preferredRegions),
     })
     .eq("id", actor.candidateId)
+    .select("id")
+    .maybeSingle()
 
-  if (error) {
+  if (error || !updated) {
     return { success: false, error: "Änderungen konnten nicht gespeichert werden." }
   }
 
@@ -193,12 +202,14 @@ export async function setOwnCandidateDocumentPath(
   }
 
   const supabase = await createClient()
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("candidates")
     .update({ cv_document_path: path })
     .eq("id", candidateId)
+    .select("id")
+    .maybeSingle()
 
-  if (error) {
+  if (error || !updated) {
     return { success: false, error: "Dokument-Pfad konnte nicht gespeichert werden." }
   }
 

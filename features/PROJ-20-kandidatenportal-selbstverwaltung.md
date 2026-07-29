@@ -2,7 +2,7 @@
 
 ## Status: In Progress
 **Created:** 2026-07-28
-**Last Updated:** 2026-07-29 (BUG-4 live gefunden und behoben — fehlende storage.objects UPDATE-Policy, siehe "Implementation Notes")
+**Last Updated:** 2026-07-29 (BUG-5 live gefunden und behoben — stiller 0-Zeilen-Treffer bei candidates-Updates + fehlende Erfolgsmeldung, siehe "Implementation Notes")
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — Schema, RLS, Storage
@@ -201,6 +201,8 @@ Vollständig implementiert (Datenbank, RLS, Server Actions, UI) in einem Durchga
 **BUG-3 (Live gefunden, behoben):** Nach Behebung von BUG-2 lieferte der Upload einer regulären, unter dem Grössenlimit liegenden Datei einen 403 "new row violates row-level security policy" von `storage.objects`. Ursache: `candidate_documents_select`/`candidate_documents_insert` (aus PROJ-1) hatten für nicht-interne Rollen bereits einen Kandidat-Branch (`(storage.foldername(name))[1] = current_candidate_id()::text`) — dieser wurde aber vor PROJ-20 nie tatsächlich durchlaufen, da jeder reale Zugriff bislang über den `is_internal_role()`-Branch lief (nur internes Personal hat je ein Kandidaten-Dokument hoch-/heruntergeladen). Fix (`20260729120000_fix_candidate_documents_own_folder_check.sql`): Ersetzt den array-basierten Vergleich durch einen einfachen `name like (current_candidate_id()::text || '/%')`-Prefix-Match, der nicht von der genauen Slicing-Semantik von `storage.foldername()` abhängt.
 
 **BUG-4 (Live gefunden, behoben):** Nach Behebung von BUG-3 blieb derselbe 403 bestehen, konkret beim *Ersetzen* eines bereits bestehenden Dokuments. Ursache: `CandidateDocumentCard`/`ContractCard` laden beide mit `upload(path, file, { upsert: true })` — Supabase Storage führt bei bereits existierendem Pfad intern ein UPDATE statt eines INSERT aus und verlangt dafür laut eigener Dokumentation die `update`-RLS-Berechtigung. Weder `candidate-documents` noch `contracts` hatten jemals eine `for update`-Policy auf `storage.objects`, für keine Rolle — ein vorbestehender PROJ-1-Gap (nicht durch PROJ-20 verursacht), der nie auffiel, weil vor PROJ-20 nie ein bereits hochgeladenes Dokument am selben Pfad ersetzt wurde. Fix (`20260729130000_add_missing_storage_update_policies.sql`): neue `candidate_documents_update`-Policy (gleiche Bedingung wie insert) und `contracts_documents_update`-Policy (intern-only, analog zu `contracts_documents_insert`) — Letztere proaktiv mitbehoben, da identisches Muster, obwohl nicht der gemeldete Bug.
+
+**BUG-5 (Live gefunden, behoben):** Nach Behebung von BUG-4 kam kein 403 mehr, aber es erschien weder eine Erfolgs- noch eine Fehlermeldung, und nach einem F5-Reload war das neue Dokument nicht übernommen. Ursache: `setOwnCandidateDocumentPath` (und die drei anderen PROJ-20-Server-Actions) prüften zwar den Supabase-`error`, aber ein `.update(...).eq(...)` **ohne** `.select()` gibt bei PostgREST nie zurück, wie viele Zeilen tatsächlich betroffen waren — `error` bleibt `null`, selbst wenn RLS die Zeile lautlos mit 0 Treffern übergangen hätte. Ein stiller "0-Zeilen-Treffer" wäre also nicht von einem echten Erfolg unterscheidbar gewesen. Fix: alle vier Actions in `src/app/candidate/profile/actions.ts` hängen jetzt `.select("id").maybeSingle()` an und werten `!updated` als Fehler; neuer Test deckt den 0-Zeilen-Fall ab. Zusätzlich zeigt `CandidateDocumentCard` jetzt eine explizite Erfolgsmeldung ("Dokument erfolgreich hochgeladen.") nach einem tatsächlich erfolgreichen Speichern an — vorher gab es dafür gar keine UI-Rückmeldung.
 
 ## QA Test Results
 _To be added by /qa_
