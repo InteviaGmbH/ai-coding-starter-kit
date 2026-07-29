@@ -63,22 +63,39 @@ create trigger enforce_candidate_self_update_columns
   for each row execute function public.enforce_candidate_self_update_columns();
 
 -- --- candidate read access to their own assignment's request/municipality --
+--
+-- These lookups must go through SECURITY DEFINER helper functions, not raw
+-- inline subqueries, exactly like every other cross-table RLS lookup in
+-- this schema (current_candidate_id(), is_active_internal_profile(), ...).
+-- candidate_proposals_select's third branch already reads
+-- personnel_requests; an inline subquery here reading candidate_proposals
+-- from within a personnel_requests policy creates a policy-evaluation
+-- cycle between the two tables (Postgres error 42P17, "infinite
+-- recursion detected in policy"). A SECURITY DEFINER function owned by a
+-- bypassrls role evaluates its internal queries without RLS, so it can
+-- read across both tables without re-entering their policies.
+
+create function public.candidate_own_request_ids() returns setof uuid
+  language sql security definer stable set search_path = public as $$
+  select cp.request_id from candidate_proposals cp
+  where cp.candidate_id = public.current_candidate_id();
+$$;
+
+create function public.candidate_own_municipality_ids() returns setof uuid
+  language sql security definer stable set search_path = public as $$
+  select pr.municipality_id from personnel_requests pr
+  join candidate_proposals cp on cp.request_id = pr.id
+  where cp.candidate_id = public.current_candidate_id();
+$$;
 
 create policy "personnel_requests_select_candidate_assigned" on personnel_requests for select
   using (
     public.is_active()
-    and id in (
-      select cp.request_id from candidate_proposals cp
-      where cp.candidate_id = public.current_candidate_id()
-    )
+    and id in (select public.candidate_own_request_ids())
   );
 
 create policy "municipalities_select_candidate_assigned" on municipalities for select
   using (
     public.is_active()
-    and id in (
-      select pr.municipality_id from personnel_requests pr
-      join candidate_proposals cp on cp.request_id = pr.id
-      where cp.candidate_id = public.current_candidate_id()
-    )
+    and id in (select public.candidate_own_municipality_ids())
   );

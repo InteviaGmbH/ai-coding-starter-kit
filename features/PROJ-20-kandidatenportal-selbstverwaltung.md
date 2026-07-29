@@ -2,7 +2,7 @@
 
 ## Status: In Progress
 **Created:** 2026-07-28
-**Last Updated:** 2026-07-29 (Implementiert — siehe "Implementation Notes")
+**Last Updated:** 2026-07-29 (BUG-1 live gefunden und behoben — infinite recursion in RLS, siehe "Implementation Notes")
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — Schema, RLS, Storage
@@ -193,6 +193,8 @@ Vollständig implementiert (Datenbank, RLS, Server Actions, UI) in einem Durchga
 **Verifikation:** `npm run build` grün, `npm run lint` ohne neue Fehler (11 vorbestehende, unveränderte Fehler aus dem Deploy bleiben bestehen), volle Vitest-Suite 87/87 grün (12 davon neu für PROJ-20).
 
 **Nicht durchgeführt (kein Browser-Tool verfügbar):** manuelles Durchklicken der neuen Seiten in einer echten Browser-Session — sollte vor `/qa` bzw. vor dem nächsten Deploy einmal manuell verifiziert werden.
+
+**BUG-1 (Live gefunden, behoben):** Nach Anwenden der Migration zeigte `/candidate/profile` "Profil konnte nicht geladen werden" und `/candidate/dashboard` zeigte "—" statt echter Werte für Verfügbarkeit/Region. Ursache, via Vercel Function Logs gefunden: Postgres-Fehler `42P17` ("infinite recursion detected in policy for relation candidate_proposals"). Die beiden neuen Policies (`personnel_requests_select_candidate_assigned`, `municipalities_select_candidate_assigned`) griffen mit rohen Inline-Subqueries direkt auf `candidate_proposals`/`personnel_requests` zu, statt wie jede andere tabellenübergreifende RLS-Prüfung in diesem Schema über eine `SECURITY DEFINER`-Hilfsfunktion zu gehen — da `candidate_proposals_select` selbst `personnel_requests` liest, entstand ein zirkulärer Auswertungs-Loop zwischen den beiden Tabellen. Fix: zwei neue `SECURITY DEFINER`-Hilfsfunktionen (`candidate_own_request_ids()`, `candidate_own_municipality_ids()`), die intern ohne RLS ausgewertet werden. `20260729090000` direkt korrigiert (für neue Setups) + neuer Patch `20260729100000_fix_candidate_assigned_policies_recursion.sql` für bereits migrierte Datenbanken. Ausserdem wurde dabei ein zweiter, unabhängiger Bug behoben: `/candidate/profile/page.tsx` prüfte den Supabase-`error` nie (nur `data`) — exakt das PROJ-8-BUG-3/PROJ-12-BUG-1-Muster aus dem eigenen Audit, jetzt behoben (`error` wird geprüft und geloggt).
 
 ## QA Test Results
 _To be added by /qa_
