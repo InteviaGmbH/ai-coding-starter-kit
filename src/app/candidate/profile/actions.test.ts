@@ -18,11 +18,11 @@ const activeCandidateProfile = {
 function mockSupabaseClient(opts?: {
   candidatesUpdateError?: { message: string } | null
   candidatesUpdateMatchedZeroRows?: boolean
-  profilesUpdateError?: { message: string } | null
+  contactRpcError?: { message: string } | null
 }) {
   const candidatesUpdateError = opts?.candidatesUpdateError ?? null
   const matchedZeroRows = opts?.candidatesUpdateMatchedZeroRows ?? false
-  const profilesUpdateError = opts?.profilesUpdateError ?? null
+  const contactRpcError = opts?.contactRpcError ?? null
 
   const candidates = {
     update: vi.fn(() => ({
@@ -37,16 +37,12 @@ function mockSupabaseClient(opts?: {
     })),
   }
 
-  const profiles = {
-    update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: profilesUpdateError })) })),
-  }
-
   return {
     from: vi.fn((table: string) => {
       if (table === "candidates") return candidates
-      if (table === "profiles") return profiles
       throw new Error(`unexpected table: ${table}`)
     }),
+    rpc: vi.fn(async () => ({ error: contactRpcError })),
   }
 }
 
@@ -92,7 +88,7 @@ describe("candidate profile self-service actions", () => {
       expect(result.success).toBe(false)
     })
 
-    it("updates both the candidate row and profiles.full_name on the happy path", async () => {
+    it("calls the atomic update_own_candidate_contact RPC with both name fields and phone", async () => {
       vi.doMock("@/lib/auth/get-current-profile", () => ({
         getCurrentProfile: async () => activeCandidateProfile,
       }))
@@ -107,10 +103,27 @@ describe("candidate profile self-service actions", () => {
       })
 
       expect(result).toEqual({ success: true })
-      expect(client.from("candidates").update).toHaveBeenCalledWith(
-        expect.objectContaining({ first_name: "Max", last_name: "Muster", phone: "079 123 45 67" })
-      )
-      expect(client.from("profiles").update).toHaveBeenCalledWith({ full_name: "Max Muster" })
+      expect(client.rpc).toHaveBeenCalledWith("update_own_candidate_contact", {
+        p_first_name: "Max",
+        p_last_name: "Muster",
+        p_phone: "079 123 45 67",
+      })
+    })
+
+    it("reports failure without a partial write when the atomic RPC errors", async () => {
+      vi.doMock("@/lib/auth/get-current-profile", () => ({
+        getCurrentProfile: async () => activeCandidateProfile,
+      }))
+      const client = mockSupabaseClient({ contactRpcError: { message: "profiles update failed" } })
+      vi.doMock("@/lib/supabase/server", () => ({ createClient: async () => client }))
+
+      const { updateCandidateContact } = await import("./actions")
+      const result = await updateCandidateContact({ firstName: "Max", lastName: "Muster" })
+
+      expect(result).toEqual({
+        success: false,
+        error: "Änderungen konnten nicht gespeichert werden.",
+      })
     })
   })
 

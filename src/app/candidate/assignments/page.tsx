@@ -12,12 +12,16 @@ export default async function CandidateAssignmentsPage() {
 
   // RLS (assignments_select) already scopes this to the caller's own
   // candidate_id via the proposal -> candidate chain.
-  const { data: assignments } = await supabase
+  const { data: assignments, error } = await supabase
     .from("assignments")
     .select(
       "id, status, start_date, end_date, proposal:candidate_proposals(request:personnel_requests(municipality:municipalities(name)))",
     )
     .order("created_date", { ascending: false })
+
+  if (error) {
+    console.error("Einsätze konnten nicht geladen werden:", error)
+  }
 
   const rows: CandidateAssignmentRow[] = (assignments ?? []).map((a) => {
     const proposal = Array.isArray(a.proposal) ? a.proposal[0] : a.proposal

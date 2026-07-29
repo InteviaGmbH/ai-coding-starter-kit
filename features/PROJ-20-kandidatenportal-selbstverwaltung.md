@@ -2,7 +2,7 @@
 
 ## Status: In Review
 **Created:** 2026-07-28
-**Last Updated:** 2026-07-29 (QA durchgeführt — 6 weitere Bugs gefunden, u.a. 1 High. Nicht production-ready, siehe "QA Test Results")
+**Last Updated:** 2026-07-29 (BUG-6 und BUG-9 aus dem QA-Durchgang behoben, siehe "QA Test Results" — BUG-7/8/10/11 noch offen)
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — Schema, RLS, Storage
@@ -274,7 +274,7 @@ Playwright-Browser wurden für diesen Durchgang installiert (`npx playwright ins
 
 ### Bugs Found
 
-#### BUG-6: Ungeprüfter Supabase-`error` in `/candidate/assignments` (Liste + Detail)
+#### BUG-6: Ungeprüfter Supabase-`error` in `/candidate/assignments` (Liste + Detail) — ✅ FIXED (2026-07-29)
 - **Severity:** High
 - **Steps to Reproduce:**
   1. `/candidate/assignments/page.tsx:15` und `/candidate/assignments/[id]/page.tsx:21` destructurieren nur `{ data }`, nie `error`
@@ -282,6 +282,7 @@ Playwright-Browser wurden für diesen Durchgang installiert (`npx playwright ins
   3. Erwartet: Fehler wird geloggt und/oder sichtbar gemacht, nicht als leerer/falscher Zustand maskiert
   4. Actual: Exakt dasselbe Muster wie BUG-1 (dieser Spec) und PROJ-8-BUG-3/PROJ-12-BUG-1 (eigenes Audit) — dieser konkrete Pfad wurde aber nie live getestet
 - **Priority:** Fix before deployment
+- **Fix:** Beide Queries (Liste, Detail) sowie die `contracts`-Query auf der Detailseite prüfen jetzt `error` und loggen ihn. Auf der Detailseite wird `PGRST116` ("no rows", der erwartete Fall bei einem fremden/unbekannten Einsatz) explizit von echten Fehlern unterschieden, damit ein legitimer Zugriffsentzug nicht fälschlich als Fehler geloggt wird.
 
 #### BUG-7: Keine Erfolgsmeldung bei Kontaktdaten-/Verfügbarkeits-/Qualifikationen-Karte
 - **Severity:** Low
@@ -300,13 +301,14 @@ Playwright-Browser wurden für diesen Durchgang installiert (`npx playwright ins
   4. Actual: im Normalfall unsichtbar (gerade eingegebener Wert = neuer Serverwert), aber bei einer Diskrepanz (z.B. gleichzeitige interne Bearbeitung, siehe Edge Case "Last write wins", oder serverseitige Normalisierung) zeigt das Formular weiterhin den alten clientseitigen Stand, bis die Seite komplett neu geladen wird (F5)
 - **Priority:** Fix in next sprint
 
-#### BUG-9: Kein Erfolgs-/Fehler-Feedback für die non-atomare Zwei-Tabellen-Schreibung in `updateCandidateContact`
+#### BUG-9: Kein Erfolgs-/Fehler-Feedback für die non-atomare Zwei-Tabellen-Schreibung in `updateCandidateContact` — ✅ FIXED (2026-07-29)
 - **Severity:** Medium
 - **Steps to Reproduce:**
   1. `updateCandidateContact` schreibt zuerst `candidates` (first_name/last_name/phone), danach separat `profiles.full_name`
   2. Wenn der erste Schritt gelingt, aber der zweite fehlschlägt, meldet die Funktion `{success:false}` — aber `candidates` wurde bereits geändert
   3. Erwartet: entweder beide Schreibungen gelingen oder keine (Transaktion), oder der Nutzer wird über den Teilerfolg informiert
   4. Actual: stiller Datendrift zwischen `candidates.first_name/last_name` und `profiles.full_name` möglich (Portal-Header zeigt dann einen anderen Namen als das Profil)
+- **Fix:** Neue Postgres-Funktion `update_own_candidate_contact()` (`20260729140000_atomic_candidate_contact_update.sql`) führt beide Updates in einem Funktionsaufruf aus — schlägt eines fehl, wird der gesamte Aufruf abgebrochen, keines der beiden Updates wirkt sich mehr aus. Bewusst ohne `SECURITY DEFINER`: die Funktion läuft weiterhin unter den Rechten des Aufrufers, RLS/Trigger-Schutz auf beiden Tabellen bleibt unverändert wirksam — nur Atomarität kommt hinzu. `updateCandidateContact` ruft jetzt `supabase.rpc(...)` statt zwei separater `.update()`-Aufrufe auf.
 - **Priority:** Nice to have (geringe Eintrittswahrscheinlichkeit, "Last write wins" ist im Projekt ohnehin akzeptierte Vereinfachung)
 
 #### BUG-10: Upload-Datum des CV wird nirgends angezeigt

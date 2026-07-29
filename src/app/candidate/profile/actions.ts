@@ -51,33 +51,18 @@ export async function updateCandidateContact(input: CandidateContactInput): Prom
 
   const supabase = await createClient()
 
-  const { data: updatedCandidate, error: candidateError } = await supabase
-    .from("candidates")
-    .update({
-      first_name: parsed.data.firstName,
-      last_name: parsed.data.lastName,
-      phone: parsed.data.phone || null,
-    })
-    .eq("id", actor.candidateId)
-    .select("id")
-    .maybeSingle()
+  // Writes candidates (first_name/last_name/phone) and profiles.full_name
+  // — kept in sync since the two are separate columns set together only
+  // once, at registration — through a single Postgres function so either
+  // both updates land or neither does (see
+  // 20260729140000_atomic_candidate_contact_update.sql).
+  const { error } = await supabase.rpc("update_own_candidate_contact", {
+    p_first_name: parsed.data.firstName,
+    p_last_name: parsed.data.lastName,
+    p_phone: parsed.data.phone || null,
+  })
 
-  // A plain `.update()` without `.select()` never reports how many rows
-  // were actually affected — `error` stays null even if RLS silently
-  // matched zero rows. Checking the returned row catches that case too.
-  if (candidateError || !updatedCandidate) {
-    return { success: false, error: "Änderungen konnten nicht gespeichert werden." }
-  }
-
-  // Keeps the portal header (profiles.full_name) in sync with the name
-  // shown/edited here — the two are separate columns set together only
-  // once, at registration.
-  const { error: profileError } = await supabase
-    .from("profiles")
-    .update({ full_name: `${parsed.data.firstName} ${parsed.data.lastName}` })
-    .eq("id", actor.profileId)
-
-  if (profileError) {
+  if (error) {
     return { success: false, error: "Änderungen konnten nicht gespeichert werden." }
   }
 

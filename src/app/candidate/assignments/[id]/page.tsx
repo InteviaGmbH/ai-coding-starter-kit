@@ -18,13 +18,22 @@ export default async function CandidateAssignmentDetailPage({
 
   // RLS (assignments_select) already scopes this to the caller's own
   // candidate_id — a foreign assignment id simply resolves to no row.
-  const { data: assignment } = await supabase
+  const { data: assignment, error: assignmentError } = await supabase
     .from("assignments")
     .select(
       "id, status, start_date, end_date, proposal:candidate_proposals(request:personnel_requests(title, municipality:municipalities(name)))",
     )
     .eq("id", id)
     .single()
+
+  if (assignmentError) {
+    // PGRST116 ("no rows") is the expected outcome for a foreign/unknown
+    // assignment id — RLS already denied it, not an error worth logging.
+    // Anything else is a real failure and should be visible in the logs.
+    if (assignmentError.code !== "PGRST116") {
+      console.error("Einsatzdetail konnte nicht geladen werden:", assignmentError)
+    }
+  }
 
   if (!assignment) {
     notFound()
@@ -43,11 +52,15 @@ export default async function CandidateAssignmentDetailPage({
     : null
   const status = assignment.status as "proposed" | "accepted" | "active" | "completed"
 
-  const { data: contract } = await supabase
+  const { data: contract, error: contractError } = await supabase
     .from("contracts")
     .select("status, generated_document_path, signed_document_path")
     .eq("assignment_id", id)
     .maybeSingle()
+
+  if (contractError) {
+    console.error("Vertrag konnte nicht geladen werden:", contractError)
+  }
 
   let generatedDownloadUrl: string | null = null
   let signedDownloadUrl: string | null = null
