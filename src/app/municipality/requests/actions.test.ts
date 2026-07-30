@@ -119,6 +119,64 @@ describe("municipality requests server actions", () => {
     ])
   })
 
+  it("PROJ-14: saves an empty required-workload field as null, not 0", async () => {
+    vi.doMock("@/lib/auth/get-current-profile", () => ({
+      getCurrentProfile: async () => activeMunicipalityProfile,
+    }))
+    const client = mockSupabaseClient()
+    vi.doMock("@/lib/supabase/server", () => ({ createClient: async () => client }))
+    vi.doMock("@/lib/supabase/admin", () => ({ createAdminClient: () => mockAdminClient() }))
+
+    const { createPersonnelRequest } = await import("./actions")
+    const result = await createPersonnelRequest({
+      title: "Sozialarbeiter:in",
+      startDate: "2026-08-01",
+      requiredWorkloadPercent: "",
+    })
+
+    expect(result).toEqual({ success: true, id: REQUEST_ID })
+    expect(client.from("personnel_requests").insert).toHaveBeenCalledWith(
+      expect.objectContaining({ required_workload_percent: null })
+    )
+  })
+
+  it("PROJ-14: passes a valid required-workload value through to the insert", async () => {
+    vi.doMock("@/lib/auth/get-current-profile", () => ({
+      getCurrentProfile: async () => activeMunicipalityProfile,
+    }))
+    const client = mockSupabaseClient()
+    vi.doMock("@/lib/supabase/server", () => ({ createClient: async () => client }))
+    vi.doMock("@/lib/supabase/admin", () => ({ createAdminClient: () => mockAdminClient() }))
+
+    const { createPersonnelRequest } = await import("./actions")
+    const result = await createPersonnelRequest({
+      title: "Sozialarbeiter:in",
+      startDate: "2026-08-01",
+      requiredWorkloadPercent: "80",
+    })
+
+    expect(result).toEqual({ success: true, id: REQUEST_ID })
+    expect(client.from("personnel_requests").insert).toHaveBeenCalledWith(
+      expect.objectContaining({ required_workload_percent: 80 })
+    )
+  })
+
+  it("PROJ-14: rejects a required-workload value above 100", async () => {
+    vi.doMock("@/lib/auth/get-current-profile", () => ({
+      getCurrentProfile: async () => activeMunicipalityProfile,
+    }))
+    vi.doMock("@/lib/supabase/server", () => ({ createClient: async () => mockSupabaseClient() }))
+
+    const { createPersonnelRequest } = await import("./actions")
+    const result = await createPersonnelRequest({
+      title: "Test",
+      startDate: "2026-08-01",
+      requiredWorkloadPercent: "150",
+    })
+
+    expect(result.success).toBe(false)
+  })
+
   it("rejects end date before start date", async () => {
     vi.doMock("@/lib/auth/get-current-profile", () => ({
       getCurrentProfile: async () => activeMunicipalityProfile,

@@ -1,8 +1,8 @@
 # PROJ-14: Volle Matching-Score-Formel mit einstellbaren Gewichtungen
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-07-30
-**Last Updated:** 2026-07-30 (Implementiert — siehe "Implementation Notes")
+**Last Updated:** 2026-07-30 (QA bestanden, 2 Low-Bugs notiert, keine Critical/High — siehe "QA Test Results")
 
 ## Dependencies
 - Requires: PROJ-6 (Kandidatensuche mit Matching-Filter) — diese Spec entwickelt die bestehende Seite `/internal/requests/[id]/candidates` weiter, statt einen neuen Screen zu bauen
@@ -157,15 +157,70 @@ Vollständig implementiert (Datenbank, Frontend, Scoring-Logik) in einem Durchga
 
 **Nebenbei behoben (gleiche Dateien ohnehin bearbeitet):** fehlende `error`-Prüfung auf beiden Anfrage-Detailseiten (`/municipality/requests/[id]`, `/internal/requests/[id]`) und der Kandidaten-Matching-Seite selbst — gleiches Muster wie in PROJ-20 BUG-1/6/11 dokumentiert.
 
-**Verifikation:** `npm run build` grün, `npm run lint` ohne neue Fehler, volle Vitest-Suite 105/105 grün (16 davon neu). Kein neuer E2E-Test nötig — die bestehende `tests/PROJ-6-kandidatensuche-matching-filter.spec.ts` deckt den unauthentifizierten Redirect für dieselbe Route bereits ab; die authentifizierte Score-/Sortier-Logik ist mangels Testkonto mit echten Anfrage-/Kandidatendaten nicht per E2E testbar (gleiche, bereits dokumentierte Einschränkung wie PROJ-2/3/4/5/6/9/20) und wird durch die neue Vitest-Suite + Code-Review abgedeckt.
+**Verifikation:** `npm run build` grün, `npm run lint` ohne neue Fehler, volle Vitest-Suite 108/108 grün (19 davon neu — 16 für die Scoring-Logik, 3 für die neue Pensum-Validierung in den Anfrage-Actions). Kein neuer E2E-Test nötig — die bestehende `tests/PROJ-6-kandidatensuche-matching-filter.spec.ts` deckt den unauthentifizierten Redirect für dieselbe Route bereits ab; die authentifizierte Score-/Sortier-Logik ist mangels Testkonto mit echten Anfrage-/Kandidatendaten nicht per E2E testbar (gleiche, bereits dokumentierte Einschränkung wie PROJ-2/3/4/5/6/9/20) und wird durch die neue Vitest-Suite + Code-Review abgedeckt.
 
 **Nicht durchgeführt (kein Browser-Tool verfügbar):** manuelles Durchklicken der neuen Regler/Score-Anzeige in einer echten Browser-Session.
 
 ## QA Test Results
-_To be added by /qa_
 
-## QA Test Results
-_To be added by /qa_
+**Tested:** 2026-07-30
+**App URL:** Kein Browser-Tool/keine funktionierenden Supabase-Zugangsdaten in dieser Umgebung — siehe Testmethode
+**Tester:** QA Engineer (AI)
+
+### Testmethode
+Wie bereits bei PROJ-20 etabliert: kein Browser-Tool und keine `.env.local` in dieser Umgebung (Playwright-Webserver-Start würde ohnehin an fehlenden Supabase-Credentials scheitern). Abdeckung dieses Durchgangs:
+1. Vollständige Vitest-Suite (108/108, 19 neu) — insbesondere die Scoring-Logik (16 Tests, deckt jede Formel-Verzweigung inkl. Edge Cases ab) und die neue Pensum-Validierung (3 Tests, gezielt gegen dieselbe "Leerstring wird zu 0 statt null"-Bug-Klasse getestet, die in PROJ-20 einmal real auftrat — hier bestanden)
+2. Gezielter Code-Audit aller neuen/geänderten Dateien, mit Fokus auf dieselben Bug-Muster, die in PROJ-20 mehrfach real auftraten (ungeprüfte `error`-Werte, RLS-Spaltenrestriktionen, Typ-Mismatches zwischen Formular und Server Action)
+3. Bestehender PROJ-6-E2E-Test (unauthentifizierter Redirect) bleibt für dieselbe Route gültig
+
+### Acceptance Criteria Status
+- [x] Alle Kandidaten (aktiv/kein Konto) werden gezeigt, sortiert nach Score — Code-Review: harter Ausschluss entfernt, `MatchingCandidatesTable` erhält bereits sortierte Rows
+- [x] Kandidat mit 0 Übereinstimmungen bleibt sichtbar mit niedrigem Score — Vitest bestätigt (`score.test.ts`)
+- [x] Fehlende Kandidatendaten (Verfügbarkeit/Pensum) werden neutral (100%) gewertet — Vitest bestätigt
+- [x] Stabile Sekundärsortierung nach Name bei Score-Gleichstand — Code-Review (`localeCompare` auf `lastName firstName`)
+- [x] Gewichtungs-Regler sortieren die Liste ohne Seitenneuladen neu — Code-Review (`useMemo` in `CandidateMatchingPanel`, kein Server-Roundtrip)
+- [x] Gewichte summieren sich auf 100% (automatische Normalisierung) — Vitest bestätigt (`normalizeWeights`), UI zeigt normalisierten Wert
+- [x] Keine Persistierung der Gewichte zwischen Seitenaufrufen — Code-Review (reiner `useState`, kein Speichern)
+- [x] Score-Badge pro Kandidat sichtbar — Code-Review
+- [x] Aufklappbare Faktor-Aufschlüsselung — Code-Review (Popover mit allen vier Teilscores)
+- [x] Skills/Region weiterhin anpassbar, wirken jetzt auf den Score — Code-Review + Vitest (Score reagiert auf geänderte `requiredSkills`/`region`)
+- [x] Zugriffsschutz für municipality/candidate — unverändert aus PROJ-6, weiterhin per bestehendem E2E-Test abgedeckt
+
+### Edge Cases Status
+- [x] Anfrage ohne Skills/Region/Daten/Pensum → betroffene Faktoren neutral — Vitest bestätigt
+- [x] Kandidat mit leerer Skills-Liste → 0% nur im Skills-Faktor, nicht Gesamt-Score — Vitest bestätigt
+- [x] Alle Gewichte auf 0 → Score 0% für alle, keine Division durch 0 — Vitest bestätigt (`overall: 0`, kein Fehler)
+- [x] Ungültige Anfrage-ID → `notFound()` statt Absturz — Code-Review (unverändert aus PROJ-6, jetzt zusätzlich mit explizitem `PGRST116`-Check)
+
+### Security Audit Results
+- [x] Authentication/Authorization: unverändert aus PROJ-6, Zugriff weiterhin ausschliesslich `/internal/*` mit Rollenprüfung im Layout
+- [x] RLS-Update-Policies für `personnel_requests` sind zeilen-, nicht spaltenbasiert — das neue Feld `required_workload_percent` unterliegt keiner zusätzlichen Einschränkung, kein neues Risiko
+- [x] Input-Validierung: Zod client- und serverseitig für das neue Pensum-Feld + DB-Check-Constraint als dritte Schicht
+- [x] XSS/SQL-Injection: keine neuen Angriffsflächen, Score ist rein berechnet aus bereits zugänglichen Daten, keine neuen Eingabefelder mit Freitext-Rendering ohne React-Escaping
+- [x] Keine neue Datenexposition: Score nutzt ausschliesslich Felder, die internes Personal bereits sehen durfte
+
+### Bugs Found
+
+#### BUG-1: Fehlende `.limit()` auf der Kandidaten-Query
+- **Severity:** Low
+- **Steps to Reproduce:** `/internal/requests/[id]/candidates/page.tsx` lädt alle Kandidaten ohne `.limit()`, entgegen der Projekt-Regel "Use `.limit()` on all list queries" (`backend.md`)
+- **Kontext:** Vorbestehend seit PROJ-6 (dort ebenfalls kein Limit), von dieser Spec übernommen statt neu eingeführt; im Pilot-Massstab (wenige Kandidaten) ohne praktische Auswirkung, PROJ-6s eigene Spec hat Performance explizit als out of scope deklariert
+- **Priority:** Nice to have
+
+#### BUG-2: Slider-Position entspricht nicht immer der angezeigten Prozentzahl
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Alle vier Gewichtungs-Regler auf 100 stellen
+  2. Erwartet: angezeigte Prozentzahl entspricht intuitiv der Reglerposition
+  3. Tatsächlich: Regler stehen alle ganz rechts (100), aber die angezeigte normalisierte Prozentzahl zeigt jeweils 25% (da alle vier gleich gewichtet, normalisiert auf Summe 100) — kann kurzzeitig verwirren, obwohl der berechnete Score korrekt ist
+- **Priority:** Nice to have
+
+### Summary
+- **Acceptance Criteria:** 11/11 bestanden (Code-Review + Vitest, siehe Testmethode für Einschränkungen)
+- **Bugs Found:** 2 total (0 Critical, 0 High, 0 Medium, 2 Low)
+- **Security:** Pass — keine Authorization-/Injection-Lücken, keine neue Datenexposition
+- **Production Ready:** **YES** — keine Critical/High-Bugs
+- **Empfehlung:** Beide Low-Findings können gesammelt in einem späteren Aufräum-Pass behoben werden. Vor dem nächsten echten Pilot-Einsatz der Matching-Seite empfiehlt sich einmal ein manueller Klick-Test mit echten Anfrage-/Kandidatendaten (gleiche Empfehlung wie bei PROJ-6 selbst nie nachgeholt).
 
 ## Deployment
 _To be added by /deploy_
