@@ -12,6 +12,8 @@ interface ActionResult {
   id?: string
 }
 
+const blankToUndefined = (val: unknown) => (val === "" || val === undefined || val === null ? undefined : val)
+
 const requestSchema = z
   .object({
     title: z.string().trim().min(1, "Titel/Rolle ist erforderlich"),
@@ -19,6 +21,10 @@ const requestSchema = z
     region: z.string().trim().optional(),
     startDate: z.string().trim().min(1, "Startdatum ist erforderlich"),
     endDate: z.string().trim().optional(),
+    requiredWorkloadPercent: z.preprocess(
+      blankToUndefined,
+      z.coerce.number().int().min(0).max(100).optional()
+    ),
   })
   .refine((data) => !data.endDate || data.endDate >= data.startDate, {
     message: "Enddatum darf nicht vor dem Startdatum liegen",
@@ -76,6 +82,7 @@ export async function createPersonnelRequest(
       region: parsed.data.region || null,
       start_date: parsed.data.startDate,
       end_date: parsed.data.endDate || null,
+      required_workload_percent: parsed.data.requiredWorkloadPercent ?? null,
     })
     .select("id")
     .single()
@@ -158,6 +165,7 @@ export async function updatePersonnelRequest(
       region: parsed.data.region || null,
       start_date: parsed.data.startDate,
       end_date: parsed.data.endDate || null,
+      required_workload_percent: parsed.data.requiredWorkloadPercent ?? null,
     })
     .eq("id", id)
     .select("id")

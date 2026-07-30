@@ -1,8 +1,8 @@
 # PROJ-14: Volle Matching-Score-Formel mit einstellbaren Gewichtungen
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-07-30
-**Last Updated:** 2026-07-30 (Tech Design ergänzt — siehe Abschnitt "Tech Design (Solution Architect)")
+**Last Updated:** 2026-07-30 (Implementiert — siehe "Implementation Notes")
 
 ## Dependencies
 - Requires: PROJ-6 (Kandidatensuche mit Matching-Filter) — diese Spec entwickelt die bestehende Seite `/internal/requests/[id]/candidates` weiter, statt einen neuen Screen zu bauen
@@ -133,6 +133,33 @@ Gespeichert in: bestehende Supabase-Datenbank. Die eigentliche Score-Berechnung 
 ### D) Dependencies (packages to install)
 - Neue shadcn-Komponente: `Slider` (`npx shadcn@latest add slider --yes`) — für die vier Gewichtungs-Regler
 - Keine neuen npm-Pakete darüber hinaus
+
+## Implementation Notes
+
+Vollständig implementiert (Datenbank, Frontend, Scoring-Logik) in einem Durchgang, konsistent mit dem etablierten Vorgehen in diesem Projekt.
+
+**Datenbank (`supabase/migrations/20260730090000_personnel_requests_required_workload.sql`):**
+- Neue optionale Spalte `personnel_requests.required_workload_percent` (0–100, additiv) + Check-Constraint
+
+**Scoring-Logik (`src/lib/matching/score.ts`, neu):**
+- Reine, gut testbare Funktion `computeMatchScore()` + `normalizeWeights()` — läuft vollständig im Browser
+- Vier Faktoren: Skills (% der geforderten Skills vorhanden, case-insensitiv), Region (case-insensitiver Teilstring-Vergleich, identisch zur bisherigen PROJ-6-Logik), Verfügbarkeitszeitraum (Datums-Überlappung Kandidat ↔ Anfrage), Pensum (erfüllt/anteilig, gedeckelt bei 100%)
+- Fehlende Kandidatendaten (kein Verfügbarkeitszeitraum, kein Pensum) und fehlende Anfrage-Sollwerte werden jeweils neutral (100%) gewertet, wie in der Spec festgelegt
+- 16 neue Vitest-Tests, decken Normalfall, fehlende Daten, Gewichte-Summe-0 und Normalisierung ab
+
+**UI:**
+- `/internal/requests/[id]/candidates` (bestehende PROJ-6-Route) umgebaut: Server Component lädt jetzt **alle** Kandidaten mit aktivem/keinem Konto (kein harter Ausschluss mehr) inkl. der PROJ-20-Felder (Verfügbarkeitszeitraum, Pensum)
+- Neue `CandidateMatchingPanel` (Client) hält Skills/Region/Gewichte als State, berechnet und sortiert die Trefferliste bei jeder Änderung neu — kein Server-Roundtrip, kein Seiten-Reload
+- Neue `MatchWeightsSliders`: vier Slider (neue shadcn-Komponente), automatische Normalisierung auf 100% in der Anzeige
+- `MatchFiltersBar` von URL-Parameter-Navigation auf kontrollierten State umgebaut (kein `router.push` mehr)
+- `MatchingCandidatesTable` erweitert: Score-Badge (farbcodiert nach Höhe) + Popover mit Faktor-Aufschlüsselung; Leer-Zustand-Text angepasst ("Noch keine Kandidaten vorhanden", da nicht mehr filterbedingt leer)
+- Anfrage-Formular (PROJ-5) um optionales Feld "Benötigtes Pensum in %" ergänzt; Anzeige auf beiden Anfrage-Detailseiten (Gemeinde + intern) ergänzt
+
+**Nebenbei behoben (gleiche Dateien ohnehin bearbeitet):** fehlende `error`-Prüfung auf beiden Anfrage-Detailseiten (`/municipality/requests/[id]`, `/internal/requests/[id]`) und der Kandidaten-Matching-Seite selbst — gleiches Muster wie in PROJ-20 BUG-1/6/11 dokumentiert.
+
+**Verifikation:** `npm run build` grün, `npm run lint` ohne neue Fehler, volle Vitest-Suite 105/105 grün (16 davon neu). Kein neuer E2E-Test nötig — die bestehende `tests/PROJ-6-kandidatensuche-matching-filter.spec.ts` deckt den unauthentifizierten Redirect für dieselbe Route bereits ab; die authentifizierte Score-/Sortier-Logik ist mangels Testkonto mit echten Anfrage-/Kandidatendaten nicht per E2E testbar (gleiche, bereits dokumentierte Einschränkung wie PROJ-2/3/4/5/6/9/20) und wird durch die neue Vitest-Suite + Code-Review abgedeckt.
+
+**Nicht durchgeführt (kein Browser-Tool verfügbar):** manuelles Durchklicken der neuen Regler/Score-Anzeige in einer echten Browser-Session.
 
 ## QA Test Results
 _To be added by /qa_

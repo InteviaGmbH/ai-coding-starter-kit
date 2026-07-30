@@ -19,11 +19,17 @@ export default async function InternalRequestDetailPage({
   const { id } = await params
   const supabase = await createClient()
 
-  const { data: request } = await supabase
+  const { data: request, error: requestError } = await supabase
     .from("personnel_requests")
-    .select("id, title, required_skills, region, start_date, end_date, status, municipality_id")
+    .select(
+      "id, title, required_skills, region, start_date, end_date, required_workload_percent, status, municipality_id"
+    )
     .eq("id", id)
     .single()
+
+  if (requestError && requestError.code !== "PGRST116") {
+    console.error("Anfrage konnte nicht geladen werden:", requestError)
+  }
 
   if (!request) {
     notFound()
@@ -81,6 +87,14 @@ export default async function InternalRequestDetailPage({
           <div>
             <p className="text-muted-foreground">Region</p>
             <p>{request.region || "—"}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Benötigtes Pensum</p>
+            <p>
+              {request.required_workload_percent != null
+                ? `${request.required_workload_percent}%`
+                : "—"}
+            </p>
           </div>
           <div>
             <p className="text-muted-foreground">Benötigte Fähigkeiten</p>

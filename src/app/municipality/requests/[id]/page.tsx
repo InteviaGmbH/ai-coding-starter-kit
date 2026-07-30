@@ -19,11 +19,17 @@ export default async function MunicipalityRequestDetailPage({
   const { id } = await params
   const supabase = await createClient()
 
-  const { data: request } = await supabase
+  const { data: request, error: requestError } = await supabase
     .from("personnel_requests")
-    .select("id, title, required_skills, region, start_date, end_date, status")
+    .select(
+      "id, title, required_skills, region, start_date, end_date, required_workload_percent, status"
+    )
     .eq("id", id)
     .single()
+
+  if (requestError && requestError.code !== "PGRST116") {
+    console.error("Anfrage konnte nicht geladen werden:", requestError)
+  }
 
   if (!request) {
     notFound()
@@ -55,6 +61,7 @@ export default async function MunicipalityRequestDetailPage({
               region: request.region ?? "",
               startDate: request.start_date,
               endDate: request.end_date ?? "",
+              requiredWorkloadPercent: request.required_workload_percent?.toString() ?? "",
             }}
             trigger={<Button disabled={!editable}>Bearbeiten</Button>}
           />
@@ -82,6 +89,14 @@ export default async function MunicipalityRequestDetailPage({
           <div>
             <p className="text-muted-foreground">Region</p>
             <p>{request.region || "—"}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Benötigtes Pensum</p>
+            <p>
+              {request.required_workload_percent != null
+                ? `${request.required_workload_percent}%`
+                : "—"}
+            </p>
           </div>
           <div>
             <p className="text-muted-foreground">Benötigte Fähigkeiten</p>

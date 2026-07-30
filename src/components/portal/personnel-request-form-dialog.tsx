@@ -29,6 +29,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   createPersonnelRequest,
   updatePersonnelRequest,
+  type PersonnelRequestInput,
 } from "@/app/municipality/requests/actions"
 
 const formSchema = z
@@ -38,6 +39,12 @@ const formSchema = z
     region: z.string().optional(),
     startDate: z.string().min(1, "Startdatum ist erforderlich"),
     endDate: z.string().optional(),
+    requiredWorkloadPercent: z
+      .string()
+      .optional()
+      .refine((v) => !v || (Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 100), {
+        message: "Pensum muss zwischen 0 und 100 liegen",
+      }),
   })
   .refine((data) => !data.endDate || data.endDate >= data.startDate, {
     message: "Enddatum darf nicht vor dem Startdatum liegen",
@@ -52,6 +59,7 @@ const emptyValues: FormValues = {
   region: "",
   startDate: "",
   endDate: "",
+  requiredWorkloadPercent: "",
 }
 
 export interface PersonnelRequestFormDialogProps {
@@ -83,8 +91,8 @@ export function PersonnelRequestFormDialog({
 
     const result =
       mode === "create"
-        ? await createPersonnelRequest(values)
-        : await updatePersonnelRequest(requestId!, values)
+        ? await createPersonnelRequest(values as PersonnelRequestInput)
+        : await updatePersonnelRequest(requestId!, values as PersonnelRequestInput)
 
     setLoading(false)
 
@@ -180,6 +188,20 @@ export function PersonnelRequestFormDialog({
                 )}
               />
             </div>
+            <FormField
+              control={form.control}
+              name="requiredWorkloadPercent"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Benötigtes Pensum in % (optional)</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={0} max={100} placeholder="z.B. 80" {...field} />
+                  </FormControl>
+                  <FormDescription>Wird für die Kandidaten-Score-Berechnung genutzt</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <DialogFooter>
               <Button type="submit" disabled={loading}>
                 {loading ? "Wird gespeichert…" : "Speichern"}
