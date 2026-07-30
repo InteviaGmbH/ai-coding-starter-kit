@@ -1,8 +1,8 @@
 # PROJ-16: Vollständiges Dokumentenmanagement (Versionierung, Ablauf, Archivierung)
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-07-30
-**Last Updated:** 2026-07-30
+**Last Updated:** 2026-07-30 (Tech Design ergänzt — siehe Abschnitt "Tech Design (Solution Architect)")
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — Storage, RLS
@@ -89,12 +89,70 @@ _Keine offenen Fragen._
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Zwei neue Tabellen statt einer: "Dokument" (Typ/Name/archiviert) getrennt von "Dokument-Version" (Datei/Datum/Ablauf) | Trennt sauber "was ist das für ein Dokument" von "welche Datei-Version gehört dazu" — ermöglicht Versionierung ohne die Übersichtlichkeit zu verlieren | 2026-07-30 |
+| CV/Arbeitsbewilligung: genau ein Dokument-Eintrag pro Kandidat und Typ (durchgesetzt beim Anlegen); Zertifikate: beliebig viele | Setzt die Produktentscheidung technisch um, ohne die Datenmodell-Komplexität für CV/Arbeitsbewilligung unnötig zu erhöhen | 2026-07-30 |
+| Wiederverwendung des bestehenden `candidate-documents`-Storage-Buckets, nur mit strukturierteren Pfaden pro Dokument-Version statt einer einzigen Datei pro Kandidat | Kein neuer Speicherort nötig, bestehende Storage-RLS-Grundlage (PROJ-1/20) bleibt die Basis | 2026-07-30 |
+| Gemeinsame UI-Bausteine für Kandidatenportal (PROJ-20) und interne Kandidatenverwaltung (PROJ-4), analog zur bisherigen einfachen Dokument-Karte | Vermeidet Doppelarbeit und stellt sicher, dass sich beide Ansichten gleich verhalten | 2026-07-30 |
+| Ablauf-Warnung wird bei jedem Seitenaufruf clientseitig anhand des aktuellen Datums berechnet, nicht in der Datenbank vorberechnet/gespeichert | Einfacher, kein Hintergrundjob nötig; passt dazu, dass die automatische Benachrichtigung erst PROJ-18 liefert | 2026-07-30 |
+| Bestehende shadcn-Komponenten (`Accordion`/`Collapsible`, `AlertDialog` für die Archivieren-Bestätigung) wiederverwenden | Bereits im Projekt installiert, kein neues Paket nötig | 2026-07-30 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### A) Component Structure
+
+```
+Kandidaten-Dokumente (neuer, gemeinsam genutzter Bereich)
+├── Im Kandidatenportal (/candidate/profile) — ersetzt die bisherige einfache Dokument-Karte
+└── In der internen Kandidatenverwaltung (/internal/candidates/[id]) — ersetzt dieselbe bisherige Karte
+
+Aufbau (identisch an beiden Orten):
+├── CV                    ein aktueller Slot (Upload/Ersatz, Download) +
+│                          aufklappbare "Frühere Versionen" (Datum + Download)
+├── Arbeitsbewilligung     wie CV, zusätzlich Ablaufdatum-Feld + Warn-Badge
+│                          ("Läuft bald ab" / "Abgelaufen")
+└── Zertifikate            Liste beliebig vieler benannter Einträge, je mit:
+                            eigenem aktuellen Slot, Ablaufdatum + Warn-Badge,
+                            aufklappbarer Historie, "Archivieren"-Aktion
+                            (mit Bestätigungsdialog) und "+ Neues Zertifikat"
+
+Jeder Slot/Eintrag (CV, Arbeitsbewilligung, jedes einzelne Zertifikat) bietet:
+Datei hochladen (ersetzt aktuelle Version → alte wird automatisch archiviert),
+Ablaufdatum setzen (optional), frühere Versionen einsehen/herunterladen,
+manuell archivieren (auch ohne Ersatz-Upload)
+```
+
+### B) Data Model (plain language)
+
+Zwei neue, zusammengehörige Informationseinheiten:
+
+**Ein Dokument** (z.B. "CV von Kandidat X" oder "SVEB-Zertifikat von Kandidat X") hat:
+- Zugehöriger Kandidat
+- Typ (CV / Zertifikat / Arbeitsbewilligung)
+- Name (bei Zertifikaten frei wählbar, bei CV/Arbeitsbewilligung fest vergeben)
+- Manuell archiviert? (ja/nein)
+
+**Jede hochgeladene Datei-Version** eines Dokuments hat:
+- Zugehöriges Dokument
+- Die Datei selbst
+- Hochgeladen am
+- Ablaufdatum (optional)
+- Ist dies die aktuell gültige Version?
+
+Gespeichert in: bestehende Supabase-Datenbank (zwei neue, verknüpfte Tabellen) + der bereits bestehende `candidate-documents`-Storage-Bucket aus PROJ-1 (jetzt mit mehreren Dateien pro Kandidat statt einer einzigen).
+
+### C) Tech Decisions (justified for PM)
+
+1. **Zwei getrennte Tabellen statt einer.** Eine Tabelle beschreibt "was für ein Dokument ist das", die andere "welche Datei-Versionen gehören dazu". Das trennt die Frage "ist das Dokument archiviert?" sauber von "welche Version ist gerade aktuell?" — beides kann unabhängig voneinander gelten.
+2. **CV/Arbeitsbewilligung bleiben Einzelstücke, Zertifikate sind wiederholbar.** Technisch wird beim Anlegen sichergestellt, dass ein Kandidat nur ein CV und eine Arbeitsbewilligung hat, aber beliebig viele Zertifikate — genau wie in der Spec festgelegt.
+3. **Bestehender Speicherort wird weiterverwendet.** Es gibt keinen neuen Speicherort/Bucket, nur eine strukturiertere Ablage mit mehreren Dateien statt einer.
+4. **Ein gemeinsamer Baustein für beide Oberflächen.** Kandidatenportal und interne Kandidatenverwaltung zeigen exakt dieselbe Komponente — spart Aufwand und garantiert gleiches Verhalten.
+5. **Keine neuen Pakete.** Alle benötigten UI-Bausteine (aufklappbare Listen, Bestätigungsdialog für "Archivieren") sind bereits im Projekt vorhanden.
+
+### D) Dependencies (packages to install)
+- Keine neuen Pakete — nutzt bereits installierte shadcn-Komponenten (`Accordion`/`Collapsible`, `AlertDialog`, `Input`, `Badge`)
 
 ## QA Test Results
 _To be added by /qa_
