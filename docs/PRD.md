@@ -29,7 +29,7 @@ Dafinex ist eine B2B-Vermittlungs- und Einsatzplattform, die temporäre Fachkrä
 | P1 | Partnerportal + Partnerfirmen-Kandidatenvorschläge | Planned |
 | P1 | Volle Matching-Score-Formel mit einstellbaren Gewichtungen | Planned — Spec: [PROJ-14](../features/PROJ-14-volle-matching-score-formel.md) |
 | P1 | Digitale Multi-Party-Signaturen mit Protokollierung | Planned |
-| P1 | Vollständiges Dokumentenmanagement (Versionierung, Ablauf, Archivierung) | Planned |
+| P1 | Vollständiges Dokumentenmanagement (Versionierung, Ablauf, Archivierung) | Planned — Spec: [PROJ-16](../features/PROJ-16-vollstaendiges-dokumentenmanagement.md) |
 | P2 | Vollständiges Nachrichtensystem (interne Notizen, alle Filter) | Planned |
 | P2 | Alle Benachrichtigungstrigger + Erinnerungslogik | Planned |
 | P2 | Vollständige Dashboards für alle Rollen | Planned |
