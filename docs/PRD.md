@@ -27,7 +27,7 @@ Dafinex ist eine B2B-Vermittlungs- und Einsatzplattform, die temporäre Fachkrä
 | P0 (MVP) | Aktivitätenprotokoll (Basis) | Approved — Spec: [PROJ-12](../features/PROJ-12-aktivitaetenprotokoll-basis.md) |
 | P0 (MVP) | Gemeindeportal + interne Dafinex-Seiten | Planned |
 | P1 | Partnerportal + Partnerfirmen-Kandidatenvorschläge | Planned |
-| P1 | Volle Matching-Score-Formel mit einstellbaren Gewichtungen | Planned |
+| P1 | Volle Matching-Score-Formel mit einstellbaren Gewichtungen | Planned — Spec: [PROJ-14](../features/PROJ-14-volle-matching-score-formel.md) |
 | P1 | Digitale Multi-Party-Signaturen mit Protokollierung | Planned |
 | P1 | Vollständiges Dokumentenmanagement (Versionierung, Ablauf, Archivierung) | Planned |
 | P2 | Vollständiges Nachrichtensystem (interne Notizen, alle Filter) | Planned |

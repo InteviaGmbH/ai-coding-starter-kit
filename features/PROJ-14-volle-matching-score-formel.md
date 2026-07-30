@@ -1,0 +1,97 @@
+# PROJ-14: Volle Matching-Score-Formel mit einstellbaren Gewichtungen
+
+## Status: Planned
+**Created:** 2026-07-30
+**Last Updated:** 2026-07-30
+
+## Dependencies
+- Requires: PROJ-6 (Kandidatensuche mit Matching-Filter) — diese Spec entwickelt die bestehende Seite `/internal/requests/[id]/candidates` weiter, statt einen neuen Screen zu bauen
+- Requires: PROJ-4 (Kandidatenverwaltung) — Kandidaten-Datenmodell
+- Requires: PROJ-5 (Personalanfrage-Workflow) — Anfrage liefert die Soll-Kriterien
+- Requires: PROJ-20 (Kandidatenportal-Selbstverwaltung) — strukturierte Felder `availability_start`/`availability_end`/`max_workload_percent`, von Kandidaten selbst gepflegt
+
+## User Stories
+- Als `dafinex_admin`/`internal_coordinator` möchte ich alle grundsätzlich infrage kommenden Kandidaten für eine Anfrage sehen, sortiert nach Passgenauigkeit, damit ich auch "fast passende" Kandidaten nicht übersehe, die bei einem harten Filter komplett unsichtbar wären.
+- Als `dafinex_admin`/`internal_coordinator` möchte ich nachvollziehen können, warum ein Kandidat einen bestimmten Score hat, damit ich der Bewertung vertrauen und sie gegenüber der Gemeinde begründen kann.
+- Als `dafinex_admin`/`internal_coordinator` möchte ich die Gewichtung der einzelnen Kriterien für die aktuelle Suche anpassen können, damit ich z.B. bei einer besonders zeitkritischen Anfrage die Verfügbarkeit stärker gewichten kann als sonst.
+- Als `dafinex_admin`/`internal_coordinator` möchte ich weiterhin die Skills/Region einer Anfrage anpassen können (wie in PROJ-6), damit ich die Suche bei Bedarf erweitern oder eingrenzen kann — jetzt wirkt sich das auf den Score statt auf einen harten Ausschluss aus.
+
+## Out of Scope
+- **Zertifikate, Sprachen, Berufserfahrung, bevorzugte Regionen in der Score-Formel** — es gibt aktuell keinen vergleichbaren Soll-Wert auf der Personalanfrage; würde PROJ-5 um entsprechende Felder erweitern müssen (grösserer Scope, bewusst zurückgestellt)
+- **Globale/persistierte Gewichtungs-Einstellungen** — Gewichte werden pro Suche angepasst (UI-State), nicht in der Datenbank gespeichert oder global von einem Admin vorkonfiguriert
+- **Automatische Kandidatenvorschläge basierend auf Score** (z.B. "Top 3 automatisch vorschlagen") — der Score ist eine Sortier-/Entscheidungshilfe, der Vorschlag selbst bleibt eine manuelle Aktion (PROJ-7, unverändert)
+- **Machine-Learning-basiertes Scoring / Lernen aus vergangenen erfolgreichen Vermittlungen** — reine, transparente, nachvollziehbare Formel, kein Black-Box-Modell
+- **Partnerfirmen-Kandidaten** (`source_type: partner`) — Phase 2, PROJ-13, wie bereits in PROJ-6 festgelegt
+- **Anzeige ausstehender (nicht freigeschalteter) Konten** — bleiben ausgeblendet, wie in PROJ-6 etabliert
+
+## Acceptance Criteria
+
+**Format:** Angenommen [Vorbedingung] / Wenn [Aktion] / Dann [Ergebnis]
+
+### Score-Berechnung & Sortierung
+- [ ] Angenommen ein `dafinex_admin`/`internal_coordinator` öffnet die Kandidatensuche zu einer Anfrage, wenn die Trefferliste lädt, dann werden alle Kandidaten mit aktivem oder keinem Login-Konto angezeigt (kein harter Ausschluss mehr), sortiert absteigend nach Score
+- [ ] Angenommen ein Kandidat erfüllt keines der vier Kriterien, dann erscheint er trotzdem in der Liste, mit einem Score nahe 0%, nicht ausgeblendet
+- [ ] Angenommen ein Kandidat hat keinen gesetzten Verfügbarkeitszeitraum oder kein Pensum hinterlegt, dann erhält er für den jeweils fehlenden Faktor die volle Punktzahl (neutral gewertet, nicht bestraft)
+- [ ] Angenommen zwei Kandidaten haben denselben Score, dann ist die Sekundärsortierung nach Name (alphabetisch) stabil und nachvollziehbar
+
+### Gewichtung anpassen
+- [ ] Angenommen die Trefferliste ist sichtbar, wenn der Nutzer die Gewichtungs-Regler für Skills/Region/Verfügbarkeit/Pensum verändert, dann wird die Trefferliste ohne Seitenneuladen neu sortiert
+- [ ] Angenommen die Gewichte werden verändert, dann summieren sie sich weiterhin auf 100% (z.B. automatische Normalisierung oder Validierung)
+- [ ] Angenommen der Nutzer verlässt die Seite und kommt zurück, dann sind die Gewichte wieder auf dem Standardwert (keine Persistierung, siehe Out of Scope)
+
+### Faktor-Aufschlüsselung
+- [ ] Angenommen die Trefferliste wird angezeigt, dann ist pro Kandidat ein Gesamt-Score als Prozent-Badge sichtbar
+- [ ] Angenommen der Nutzer klickt/hovert auf den Score-Badge, dann sieht er die Aufschlüsselung nach den vier Faktoren mit jeweiligem Teilscore
+
+### Skills/Region weiterhin anpassbar
+- [ ] Angenommen der Nutzer ändert die vorausgefüllten Skills oder die Region (wie in PROJ-6), dann fliessen die geänderten Werte in die Score-Berechnung ein, statt Kandidaten auszuschliessen
+
+### Zugriffsschutz
+- [ ] Angenommen ein Nutzer mit Rolle `municipality` oder `candidate` ist eingeloggt, wenn er versucht, die Kandidatensuche direkt aufzurufen, dann wird er serverseitig auf sein eigenes Portal zurückgeleitet (unverändert aus PROJ-6)
+
+## Edge Cases
+- Anfrage ohne `required_skills`/`region`/`start_date`/`end_date`/`required_workload_percent` → die jeweils betroffenen Faktoren werden neutral (volle Punktzahl für alle Kandidaten) gewertet, kein Fehler
+- Kandidat mit leerer Skills-Liste → 0% im Skills-Faktor, nicht 0% Gesamt-Score (die anderen drei Faktoren zählen weiterhin)
+- Alle Gewichte auf 0 gesetzt → Score ist für alle Kandidaten 0%, Liste bleibt nutzbar (keine Division durch 0), Sekundärsortierung nach Name greift
+- Anfrage-ID in der URL existiert nicht → verständliche Fehlermeldung statt Absturz (wie in PROJ-6)
+- Sehr grosse Kandidatenliste → Performance nicht Teil dieser Spec (Pilot-Massstab, wie bereits in PROJ-6/PROJ-4 entschieden)
+
+## Technical Requirements (optional)
+- Security: Zugriff ausschliesslich über `/internal/*`-Portal, serverseitige Rollen-/Status-Prüfung (unverändert aus PROJ-6)
+- Wiederverwendung der bestehenden Kandidaten-/Anfrage-Datenstruktur; ein neues optionales Feld auf `personnel_requests` (siehe Decision Log)
+
+## Open Questions
+<!-- Unresolved questions from the spec interview. Close them in /refine when answered. -->
+_Keine offenen Fragen._
+
+## Decision Log
+
+### Product Decisions
+| Decision | Rationale | Date |
+|----------|-----------|------|
+| Score ersetzt den harten Ausschluss-Filter aus PROJ-6 vollständig | Verhindert, dass "fast passende" Kandidaten komplett unsichtbar bleiben; entspricht dem PRD-Auftrag einer "vollen" Matching-Formel statt einfacher Filter | 2026-07-30 |
+| Vier Score-Faktoren: Skills, Region, Verfügbarkeitszeitraum, Pensum | Objektiv gegen eine Anfrage prüfbare Kriterien; Zertifikate/Sprachen/Berufserfahrung/bevorzugte Regionen haben (noch) keinen vergleichbaren Soll-Wert auf der Anfrage | 2026-07-30 |
+| Neues optionales Feld `personnel_requests.required_workload_percent` | Ohne Soll-Pensum auf der Anfrage kein Vergleichswert für den Pensum-Faktor möglich; kleine additive Erweiterung analog zu PROJ-20 | 2026-07-30 |
+| Gewichte werden pro Suche in der UI angepasst, nicht global/persistiert | Deutlich kleinerer Scope als eine Einstellungsseite; reicht für den Pilot, jede Suche startet mit sinnvollen Standardwerten | 2026-07-30 |
+| Standard-Gewichtung: Skills 40% / Region 25% / Verfügbarkeit 25% / Pensum 10% | Skills als wichtigstes Kriterium für die Vermittlung; Pensum am wenigsten oft entscheidend | 2026-07-30 |
+| Fehlende Kandidatendaten (Verfügbarkeitszeitraum, Pensum) werden neutral (volle Punktzahl) gewertet | Verhindert systematische Benachteiligung von Kandidaten, die die neuen PROJ-20-Selbstpflege-Felder noch nicht ausgefüllt haben | 2026-07-30 |
+| Score + Aufschlüsselung als Prozent-Badge mit aufklappbarer Detailansicht | Volle Nachvollziehbarkeit der Bewertung ohne die Tabelle zu überladen | 2026-07-30 |
+| PROJ-14 entwickelt die bestehende PROJ-6-Seite (`/internal/requests/[id]/candidates`) weiter, kein neuer Screen | Gleicher Zweck (Kandidat für eine Anfrage finden), keine Duplikation; PROJ-6 gilt danach als durch PROJ-14 abgelöst | 2026-07-30 |
+| Skills-/Region-Eingabefelder aus PROJ-6 bleiben erhalten, wirken aber jetzt auf den Score statt auf einen harten Ausschluss | Konsistente, vertraute UI; kleinstmögliche Änderung an einer bereits bewährten Oberfläche | 2026-07-30 |
+
+### Technical Decisions
+<!-- Added by /architecture -->
+| Decision | Rationale | Date |
+|----------|-----------|------|
+
+---
+<!-- Sections below are added by subsequent skills -->
+
+## Tech Design (Solution Architect)
+_To be added by /architecture_
+
+## QA Test Results
+_To be added by /qa_
+
+## Deployment
+_To be added by /deploy_
