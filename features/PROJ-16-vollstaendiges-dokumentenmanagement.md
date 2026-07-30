@@ -1,8 +1,8 @@
 # PROJ-16: Vollständiges Dokumentenmanagement (Versionierung, Ablauf, Archivierung)
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-07-30
-**Last Updated:** 2026-07-30 (Implementation abgeschlossen — siehe Abschnitt "Implementation Notes")
+**Last Updated:** 2026-07-30 (QA bestanden, 4 Medium/Low-Bugs notiert und zurückgestellt, keine Critical/High — siehe "QA Test Results")
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — Storage, RLS
@@ -183,7 +183,67 @@ Gespeichert in: bestehende Supabase-Datenbank (zwei neue, verknüpfte Tabellen) 
 - `npm run build`: erfolgreich, alle Routen kompilieren
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-07-30
+**App URL:** Kein Browser-Tool/keine funktionierenden Supabase-Zugangsdaten in dieser Umgebung — siehe Testmethode
+**Tester:** QA Engineer (AI)
+
+### Testmethode
+Wie bereits bei PROJ-20/PROJ-14 etabliert: kein Browser-Tool und keine `.env.local` in dieser Umgebung. Abdeckung dieses Durchgangs:
+1. Vollständige Vitest-Suite (124/124) — insbesondere `getExpiryStatus` (7 Tests, alle vier Statuswerte inkl. Grenzfall "läuft heute ab") und beide neuen Action-Dateien (Berechtigungsprüfung, Zod-Validierung, Fehlerpfade)
+2. Gezielter Code-Audit aller neuen/geänderten Dateien: Migration (RLS-Policies, beide SECURITY-DEFINER-/atomaren RPC-Pfade, Unique-Indizes inkl. `ON CONFLICT`-Zielabgleich), beide Server-Action-Dateien, alle fünf neuen UI-Komponenten, den Server-Loader sowie die drei nachträglich reparierten Freischaltungs-Dateien
+3. Gezielte Impersonations-Analyse der RPC `save_candidate_document_version`: durchgespielt, was passiert, wenn ein Kandidat versucht, eine fremde `candidate_id` oder `document_id` unterzuschieben — in jedem Fall greift die RLS `WITH CHECK`-Klausel und bricht die Funktion mit einer Exception ab, bevor Daten verändert werden
+4. Bestehende PROJ-2/4/20-E2E-Tests (unauthentifizierte Redirects) bleiben für dieselben Routen gültig; kein neuer Playwright-Test ergänzt (gleiche Begründung wie bei PROJ-14: Login-Flows in dieser Umgebung nicht ausführbar)
+
+### Acceptance Criteria Status
+- [x] Dokumentenverwaltung zeigt drei Bereiche (CV, Zertifikate, Arbeitsbewilligung) — Code-Review (`CandidateDocumentsManager`)
+- [x] Neues Zertifikat erscheint als zusätzlicher, unabhängiger Eintrag — Code-Review (`AddCertificateForm` erzeugt immer einen neuen `candidate_documents`-Datensatz, kein Ersetzen)
+- [x] CV/Arbeitsbewilligung: neue Version ersetzt die aktuelle, alte wird automatisch archiviert — Code-Review + Migrationsanalyse (`save_candidate_document_version` setzt alte Version auf `is_current=false`, fügt neue hinzu)
+- [x] Aktuelle Version klar gekennzeichnet, ältere Versionen unter "Archiviert" mit Datum einsehbar/herunterladbar — Code-Review (`CandidateDocumentSlot` "Frühere Versionen", `CandidateArchivedDocuments`)
+- [x] Archivierte Version bleibt unverändert herunterladbar (kein Datenverlust) — Code-Review (jede Version bekommt einen eigenen, nie überschriebenen Storage-Pfad)
+- [x] Optionales Ablaufdatum beim Hochladen — Code-Review, Zod-Schema erlaubt `undefined`
+- [x] Ablaufdatum in der Vergangenheit → Validierungsfehler — Zod `.refine()`, s. jedoch **BUG-16-3** (Grenzfall)
+- [x] "Läuft bald ab" innerhalb 30 Tagen — Vitest (`expiry.test.ts`)
+- [x] "Abgelaufen" für vergangene Ablaufdaten — Vitest (`expiry.test.ts`)
+- [x] Manuelles Archivieren ohne Ersatz-Upload, mit Bestätigungsdialog — Code-Review (`AlertDialog` + `onArchive`), s. jedoch **BUG-16-4** (Dialogtext)
+- [x] CV/Arbeitsbewilligung ohne Ersatz archiviert → "Kein aktuelles Dokument" statt Fehler — Code-Review (`loadCandidateDocuments` liefert `null`, Slot zeigt Hinweistext)
+- [x] Kandidat verwaltet ausschliesslich eigene Dokumente — RLS-Analyse bestätigt (`candidate_documents_*`/`candidate_document_versions_*`, `candidate_document_belongs_to_caller`)
+- [x] Internes Personal verwaltet Dokumente aller Kandidaten — RLS-Analyse bestätigt (`is_internal_role()`-Zweig in jeder Policy)
+- [x] Gemeinde/fremder Kandidat: Zugriff verweigert — RLS-Analyse bestätigt (keine Policy gewährt `municipality` Zugriff; fremder Kandidat scheitert an `current_candidate_id()`-Vergleich)
+- [x] Nicht unterstütztes Format/Grössenlimit → Upload abgelehnt — Client-Validierung in beiden Upload-Komponenten + serverseitiges Bucket-Limit (`file_size_limit`/`allowed_mime_types`, PROJ-20-Migration) als zweite Linie
+- [x] Neues Zertifikat ohne Namen → Validierungsfehler — Client-Check in `AddCertificateForm` + serverseitig `saveDocumentVersionSchema` (`name.min(1)`)
+
+**16/16 Acceptance Criteria erfüllt.**
+
+### Edge Cases Status
+- [x] Kandidat ohne jegliche Dokumente → alle drei Bereiche zeigen leere Zustände, kein Fehler — Code-Review (`cv`/`workPermit` `null`, `certificates` leeres Array)
+- [x] Gleichzeitiges Hochladen durch Kandidat und internes Personal → Last write wins, konsistent mit PROJ-3/4/20 — unverändertes Verhalten, kein Locking eingeführt
+- [x] Viele Versionen über die Zeit → kein Limit, kein Performance-Ziel für diese Spec
+- [x] Netzwerkabbruch während Upload → alte aktuelle Version bleibt gültig, kein Teil-Upload übernommen — RPC läuft erst nach erfolgreichem Storage-Upload, kein DB-Schreiben bei fehlgeschlagenem Upload
+- [x] Zertifikat-Eintrag ohne Datei nicht zulässig — `AddCertificateForm` erzwingt eine Datei vor dem Speichern
+
+### Security Audit Results
+- [x] Authentication/Authorization: beide Server Actions prüfen `accountStatus === "active"` + passende Rolle, zusätzlich RLS als zweite Linie
+- [x] Autorisierung (fremde Daten): RPC-Impersonationsversuche (fremde `candidate_id` oder `document_id`) scheitern jeweils an `WITH CHECK` der betroffenen Tabelle, Funktion bricht mit Exception ab, keine Teilwirkung
+- [x] Spalten-Lockdown: beide neuen Trigger verhindern, dass ein Kandidat mehr als Name/Archiviert-Status bzw. den aktuellen Status ändert
+- [x] Kein SQL-Injection-Risiko: alle Queries parametrisiert (Supabase-Client/PL-pgSQL-Parameter)
+- [x] Keine neuen Secrets/sensiblen Daten in Client-Code oder API-Antworten; Download-Links sind zeitlich begrenzte signierte URLs (5 Min.), wie bereits in PROJ-20 etabliert
+- [x] Regression: Freischaltungs-Seite (`/internal/approvals`) korrekt auf neues Datenmodell umgestellt (`hasCv`-Existenzprüfung statt altem Pfad-Feld) — ohne diesen Fix hätte jede neue Kandidaten-Registrierung ab sofort fälschlich "kein Dokument hochgeladen" angezeigt
+
+### Bugs Found
+
+| ID | Severity | Beschreibung | Repro |
+|----|----------|----|----|
+| BUG-16-1 | Medium | Archivierte Zertifikate haben keinen Reaktivierungs-Weg in der UI: Anders als CV/Arbeitsbewilligung (die beim nächsten Upload automatisch entarchiviert werden) verschwindet ein archiviertes Zertifikat vollständig aus der aktiven Liste; die einzige Möglichkeit, "denselben" Nachweis wieder verfügbar zu machen, ist ein komplett neuer Zertifikat-Eintrag (`+ Neues Zertifikat`) mit demselben Namen, statt die vorhandene Historie fortzusetzen. | Zertifikat archivieren → Bereich "Zertifikate" zeigt es nicht mehr, nur noch read-only unter "Archivierte Dokumente"; kein Upload-Button mehr für genau dieses Zertifikat verfügbar |
+| BUG-16-2 | Low | `archiveCandidateDocument` (interne Server Action) prüft — anders als das Kandidaten-Pendant `archiveOwnCandidateDocument` — nicht zusätzlich `.eq("candidate_id", candidateId)` als Verteidigung in der Tiefe; verlässt sich ausschliesslich auf RLS (`is_internal_role()`). Kein Sicherheitsrisiko (internes Personal darf ohnehin alle Kandidaten-Dokumente verwalten), aber inkonsistent zum etablierten Muster und könnte bei einer fehlerhaften `documentId` (z.B. aus einem veralteten Tab) unbemerkt das Dokument des falschen Kandidaten archivieren. | Code-Review `src/app/internal/candidates/documents-actions.ts:76-81` vs. `src/app/candidate/documents/actions.ts:73-79` |
+| BUG-16-3 | Low | Die Vergangenheits-Validierung für das Ablaufdatum (`todayIso()` in `schema.ts`) vergleicht gegen das UTC-Datum, nicht gegen die lokale Zeitzone Europe/Zurich. Da die Schweiz im Sommer UTC+2 ist, gibt es täglich ein ca. 2-stündiges Fenster um lokal Mitternacht, in dem ein bereits lokal vergangenes Datum server-seitig noch als "heute" durchgeht. | `src/lib/candidateDocuments/schema.ts:6-8`, betrifft `saveDocumentVersionSchema` |
+| BUG-16-4 | Low | Der Bestätigungsdialog beim Archivieren zeigt für alle Dokumenttypen denselben Text "Dies kann nicht rückgängig gemacht werden" — für CV/Arbeitsbewilligung stimmt das nicht: ein erneuter Upload entarchiviert automatisch wieder (siehe Implementierung), die Aktion ist für diese beiden Typen also sehr wohl umkehrbar. Nur bei Zertifikaten (BUG-16-1) trifft die Formulierung tatsächlich zu. | `src/components/portal/candidate-document-slot.tsx:258-261` |
+
+**Kritische/Hohe Bugs: 0**
+**Medium: 1, Low: 3** — gemäss Nutzervorgabe notiert und zurückgestellt (Zeitdruck vor Kunden-Präsentation), keine Fixes in dieser Runde.
+
+### Production-Ready Decision
+**READY: YES** — keine Critical/High-Bugs. Status auf **Approved** gesetzt.
 
 ## Deployment
 _To be added by /deploy_
