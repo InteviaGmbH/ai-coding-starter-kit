@@ -1,8 +1,8 @@
 # PROJ-14: Volle Matching-Score-Formel mit einstellbaren Gewichtungen
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-07-30
-**Last Updated:** 2026-07-30
+**Last Updated:** 2026-07-30 (Tech Design ergänzt — siehe Abschnitt "Tech Design (Solution Architect)")
 
 ## Dependencies
 - Requires: PROJ-6 (Kandidatensuche mit Matching-Filter) — diese Spec entwickelt die bestehende Seite `/internal/requests/[id]/candidates` weiter, statt einen neuen Screen zu bauen
@@ -83,12 +83,59 @@ _Keine offenen Fragen._
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Score-Berechnung läuft vollständig im Browser (Client), nicht als Server-Roundtrip pro Änderung | Die Seite lädt alle relevanten Kandidaten- und Anfrage-Daten einmalig; jede Änderung an Gewichten, Skills oder Region berechnet den Score sofort neu und sortiert die Liste um — ohne Seitenneuladen, wie in der Spec gefordert | 2026-07-30 |
+| Löst das PROJ-6-Muster ab, Filter als URL-Suchparameter mit Server-Refetch abzubilden | War für einen harten Ausschluss-Filter sinnvoll (verlinkbar, keine doppelte Logik); für sofortiges Neu-Scoren bei jedem Regler-Tick wäre ein Server-Roundtrip pro Änderung spürbar langsamer und unnötig, da bereits alle Daten geladen sind | 2026-07-30 |
+| Gewichte werden bei Eingabe automatisch proportional auf 100% normalisiert, statt eine Validierungsfehlermeldung zu zeigen | Einfachere, reibungslosere Bedienung als ein "Summe muss 100% ergeben"-Fehlerzustand | 2026-07-30 |
+| Neues Feld `personnel_requests.required_workload_percent` (optional, additiv) statt Erweiterung um eine neue Tabelle | Kein Eingriff in bestehendes Schema/RLS von PROJ-5, gleiches additive Muster wie bereits in PROJ-20 etabliert | 2026-07-30 |
+| Neue shadcn-Komponente `Slider` installieren | Für die vier Gewichtungs-Regler gibt es noch keine passende Komponente im Projekt; kein Custom-Build nötig, shadcn deckt das ab | 2026-07-30 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### A) Component Structure
+
+```
+/internal/requests/[id]/candidates/  (bestehende PROJ-6-Route, weiterentwickelt)
+  Server Component: lädt einmalig alle Kandidaten (aktives/kein Konto) + Anfrage-Daten
+  │
+  └── CandidateMatchingPanel (Client, neu — hält den gemeinsamen Zustand)
+        ├── GewichtungsRegler                 4 Slider (Skills/Region/Verfügbarkeit/Pensum),
+        │                                      Summe wird automatisch auf 100% normalisiert
+        ├── MatchFiltersBar (bestehend,        Skills-/Region-Eingabe, wirkt jetzt sofort auf
+        │    angepasst)                        den Score statt einen Seiten-Reload auszulösen
+        └── MatchingCandidatesTable            + neue Score-Spalte: Prozent-Badge, absteigend
+             (bestehend, erweitert)              sortiert, aufklappbare Faktor-Aufschlüsselung
+                                                  je Kandidat (Skills/Region/Verfügbarkeit/Pensum)
+
+Ergänzung auf dem Anfrage-Formular (PROJ-5): neues optionales Feld "Benötigtes Pensum (%)"
+```
+
+### B) Data Model (plain language)
+
+Keine neue Tabelle. Eine zusätzliche, optionale Spalte auf der bestehenden Anfrage:
+- Benötigtes Pensum in Prozent (leer = keine Anforderung)
+
+Alles andere nutzt bereits vorhandene Felder:
+- Von der Anfrage: geforderte Fähigkeiten, Region, Start-/Enddatum, benötigtes Pensum (neu)
+- Vom Kandidaten: Fähigkeiten, Region, Verfügbarkeitszeitraum, Pensum (alle aus PROJ-4/PROJ-6/PROJ-20)
+
+Gespeichert in: bestehende Supabase-Datenbank. Die eigentliche Score-Berechnung selbst wird nirgends gespeichert — sie entsteht bei jedem Seitenaufruf/jeder Reglerbewegung neu im Browser.
+
+### C) Tech Decisions (justified for PM)
+
+1. **Score-Berechnung im Browser statt auf dem Server.** Damit sich die Trefferliste beim Verschieben eines Reglers sofort neu sortiert (keine Wartezeit, kein Seiten-Neuladen), werden alle nötigen Daten einmalig geladen und die Punkteberechnung läuft direkt im Browser. Das ist möglich, weil Personalanfragen und Kandidatenlisten im Pilot-Massstab überschaubar bleiben (wie bereits in PROJ-6 festgelegt).
+2. **Automatische Normalisierung der Gewichte statt Fehlermeldung.** Verschiebt der Nutzer einen Regler, werden die anderen automatisch proportional angepasst, sodass die Summe immer 100% ergibt — kein zusätzlicher Bedienschritt, keine Fehlerzustände.
+3. **Ein neues, optionales Anfrage-Feld für das benötigte Pensum.** Kleinstmögliche Erweiterung, um den Pensum-Faktor überhaupt vergleichbar zu machen — betrifft nur PROJ-5s Formular um ein zusätzliches, nicht verpflichtendes Feld.
+4. **Wiederverwendung der bestehenden PROJ-6-Bausteine.** Die Skills-/Region-Eingabe und die Trefferliste werden nicht neu gebaut, sondern erweitert — spart Aufwand und erhält das vertraute Erscheinungsbild.
+
+### D) Dependencies (packages to install)
+- Neue shadcn-Komponente: `Slider` (`npx shadcn@latest add slider --yes`) — für die vier Gewichtungs-Regler
+- Keine neuen npm-Pakete darüber hinaus
+
+## QA Test Results
+_To be added by /qa_
 
 ## QA Test Results
 _To be added by /qa_
