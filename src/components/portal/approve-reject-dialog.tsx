@@ -116,7 +116,7 @@ export function ApproveRejectDialog({
               <span className="font-medium">Verfügbarkeit:</span>{" "}
               {account.candidate.availability || "—"}
             </p>
-            {account.candidate.cv_document_path && (
+            {account.candidate.hasCv && (
               <p className="text-muted-foreground">Dokument hochgeladen</p>
             )}
           </div>

@@ -23,7 +23,7 @@ export interface PendingAccount {
     skills: string[]
     region: string | null
     availability: string | null
-    cv_document_path: string | null
+    hasCv: boolean
   } | null
 }
 

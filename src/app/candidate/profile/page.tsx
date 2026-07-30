@@ -4,8 +4,9 @@ import { getCurrentProfile } from "@/lib/auth/get-current-profile"
 import { CandidateContactCard } from "@/components/portal/candidate-contact-card"
 import { CandidateAvailabilityCard } from "@/components/portal/candidate-availability-card"
 import { CandidateQualificationsCard } from "@/components/portal/candidate-qualifications-card"
-import { CandidateDocumentCard } from "@/components/portal/candidate-document-card"
-import { setOwnCandidateDocumentPath } from "@/app/candidate/profile/actions"
+import { CandidateDocumentsManager } from "@/components/portal/candidate-documents-manager"
+import { loadCandidateDocuments } from "@/lib/candidateDocuments/loadDocuments"
+import { saveOwnCandidateDocumentVersion, archiveOwnCandidateDocument } from "@/app/candidate/documents/actions"
 
 export const metadata: Metadata = { title: "Profil — Dafinex" }
 
@@ -16,21 +17,13 @@ export default async function CandidateProfilePage() {
   const { data: candidate, error: candidateError } = await supabase
     .from("candidates")
     .select(
-      "id, first_name, last_name, phone, skills, certifications, languages, experience_years, preferred_regions, availability_start, availability_end, max_workload_percent, cv_document_path, cv_uploaded_at"
+      "id, first_name, last_name, phone, skills, certifications, languages, experience_years, preferred_regions, availability_start, availability_end, max_workload_percent"
     )
     .eq("id", profile?.candidateId ?? "")
     .maybeSingle()
 
   if (candidateError) {
     console.error("Kandidatenprofil konnte nicht geladen werden:", candidateError)
-  }
-
-  let downloadUrl: string | null = null
-  if (candidate?.cv_document_path) {
-    const { data: signed } = await supabase.storage
-      .from("candidate-documents")
-      .createSignedUrl(candidate.cv_document_path, 300)
-    downloadUrl = signed?.signedUrl ?? null
   }
 
   if (!candidate) {
@@ -43,6 +36,8 @@ export default async function CandidateProfilePage() {
       </div>
     )
   }
+
+  const documents = await loadCandidateDocuments(candidate.id)
 
   return (
     <div className="space-y-6">
@@ -75,12 +70,14 @@ export default async function CandidateProfilePage() {
         }}
       />
 
-      <CandidateDocumentCard
+      <CandidateDocumentsManager
         candidateId={candidate.id}
-        documentPath={candidate.cv_document_path}
-        downloadUrl={downloadUrl}
-        uploadedAt={candidate.cv_uploaded_at}
-        onSave={setOwnCandidateDocumentPath}
+        cv={documents.cv}
+        workPermit={documents.workPermit}
+        certificates={documents.certificates}
+        archivedDocuments={documents.archivedDocuments}
+        onSave={saveOwnCandidateDocumentVersion}
+        onArchive={archiveOwnCandidateDocument}
       />
     </div>
   )

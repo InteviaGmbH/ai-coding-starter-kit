@@ -235,54 +235,6 @@ describe("candidate profile self-service actions", () => {
       })
     })
   })
-
-  describe("setOwnCandidateDocumentPath", () => {
-    it("refuses to write a document path for a different candidate id", async () => {
-      vi.doMock("@/lib/auth/get-current-profile", () => ({
-        getCurrentProfile: async () => activeCandidateProfile,
-      }))
-      vi.doMock("@/lib/supabase/server", () => ({ createClient: async () => mockSupabaseClient() }))
-
-      const { setOwnCandidateDocumentPath } = await import("./actions")
-      const result = await setOwnCandidateDocumentPath("99999999-9999-4999-a999-999999999999", "path/cv.pdf")
-
-      expect(result).toEqual({ success: false, error: "Keine Berechtigung." })
-    })
-
-    it("saves the document path for the caller's own candidate row", async () => {
-      vi.doMock("@/lib/auth/get-current-profile", () => ({
-        getCurrentProfile: async () => activeCandidateProfile,
-      }))
-      const client = mockSupabaseClient()
-      vi.doMock("@/lib/supabase/server", () => ({ createClient: async () => client }))
-
-      const { setOwnCandidateDocumentPath } = await import("./actions")
-      const result = await setOwnCandidateDocumentPath(CANDIDATE_ID, `${CANDIDATE_ID}/cv.pdf`)
-
-      expect(result).toEqual({ success: true })
-      expect(client.from("candidates").update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          cv_document_path: `${CANDIDATE_ID}/cv.pdf`,
-          cv_uploaded_at: expect.any(String),
-        })
-      )
-    })
-
-    it("reports failure when the update matches zero rows (e.g. blocked by RLS) without a Postgres error", async () => {
-      vi.doMock("@/lib/auth/get-current-profile", () => ({
-        getCurrentProfile: async () => activeCandidateProfile,
-      }))
-      vi.doMock("@/lib/supabase/server", () => ({
-        createClient: async () => mockSupabaseClient({ candidatesUpdateMatchedZeroRows: true }),
-      }))
-
-      const { setOwnCandidateDocumentPath } = await import("./actions")
-      const result = await setOwnCandidateDocumentPath(CANDIDATE_ID, `${CANDIDATE_ID}/cv.pdf`)
-
-      expect(result).toEqual({
-        success: false,
-        error: "Dokument-Pfad konnte nicht gespeichert werden.",
-      })
-    })
-  })
+  // CV upload/replace moved to the versioned document management system —
+  // see src/app/candidate/documents/actions.test.ts (PROJ-16).
 })

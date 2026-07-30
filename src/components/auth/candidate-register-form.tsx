@@ -146,7 +146,10 @@ export function CandidateRegisterForm() {
     }
 
     if (cvFile) {
-      const path = `${candidateId}/${cvFile.name}`
+      // Unique per-upload path (PROJ-16 versioning) rather than a fixed
+      // per-candidate path — every version gets its own file, never
+      // overwritten.
+      const path = `${candidateId}/${crypto.randomUUID()}-${cvFile.name}`
       const { error: uploadError } = await supabase.storage
         .from("candidate-documents")
         .upload(path, cvFile)
@@ -157,7 +160,19 @@ export function CandidateRegisterForm() {
           "Profil wurde gespeichert, das Dokument konnte aber nicht hochgeladen werden. Du kannst es später erneut versuchen."
         )
       } else {
-        await supabase.from("candidates").update({ cv_document_path: path }).eq("id", candidateId)
+        const { error: rpcError } = await supabase.rpc("save_candidate_document_version", {
+          p_candidate_id: candidateId,
+          p_document_type: "cv",
+          p_name: "CV",
+          p_file_path: path,
+          p_expiry_date: null,
+          p_document_id: null,
+        })
+        if (rpcError) {
+          setError(
+            "Profil wurde gespeichert, das Dokument konnte aber nicht gespeichert werden. Du kannst es später erneut versuchen."
+          )
+        }
       }
     }
 

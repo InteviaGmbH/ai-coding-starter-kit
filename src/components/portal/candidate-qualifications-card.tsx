@@ -114,11 +114,13 @@ export function CandidateQualificationsCard({ defaultValues }: { defaultValues: 
               name="certifications"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Zertifikate</FormLabel>
+                  <FormLabel>Zertifikate (Kurzliste)</FormLabel>
                   <FormControl>
                     <Textarea placeholder="z.B. Berufsmatura, SVEB-Zertifikat" {...field} />
                   </FormControl>
-                  <FormDescription>Mit Komma trennen</FormDescription>
+                  <FormDescription>
+                    Mit Komma trennen — für Nachweisdokumente siehe Abschnitt Dokumente unten
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

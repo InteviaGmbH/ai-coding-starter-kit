@@ -148,26 +148,5 @@ export async function deleteCandidate(id: string): Promise<ActionResult> {
   return { success: true }
 }
 
-export async function setCandidateDocumentPath(id: string, path: string): Promise<ActionResult> {
-  const actor = await requireInternalRole()
-  if (!actor) {
-    return { success: false, error: "Keine Berechtigung." }
-  }
-
-  if (!z.string().uuid().safeParse(id).success || !z.string().min(1).safeParse(path).success) {
-    return { success: false, error: "Ungültige Anfrage." }
-  }
-
-  const supabase = await createClient()
-  const { error } = await supabase
-    .from("candidates")
-    .update({ cv_document_path: path, cv_uploaded_at: new Date().toISOString() })
-    .eq("id", id)
-
-  if (error) {
-    return { success: false, error: "Dokument-Pfad konnte nicht gespeichert werden." }
-  }
-
-  revalidatePath(`/internal/candidates/${id}`)
-  return { success: true }
-}
+// CV upload/replace is now handled by the versioned document management
+// system — see src/app/internal/candidates/documents-actions.ts (PROJ-16).

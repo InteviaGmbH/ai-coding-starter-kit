@@ -26,11 +26,28 @@ export default async function ApprovalsPage() {
     candidateProfileIds.length > 0
       ? await supabase
           .from("candidates")
-          .select("profile_id, skills, region, availability, cv_document_path")
+          .select("id, profile_id, skills, region, availability")
           .in("profile_id", candidateProfileIds)
       : { data: [] }
 
-  const candidatesByProfileId = new Map((candidates ?? []).map((c) => [c.profile_id, c]))
+  const candidateIds = (candidates ?? []).map((c) => c.id)
+
+  // PROJ-16: CVs live in candidate_documents now, not candidates.cv_document_path.
+  const { data: cvDocuments } =
+    candidateIds.length > 0
+      ? await supabase
+          .from("candidate_documents")
+          .select("candidate_id")
+          .eq("document_type", "cv")
+          .eq("is_archived", false)
+          .in("candidate_id", candidateIds)
+      : { data: [] }
+
+  const candidateIdsWithCv = new Set((cvDocuments ?? []).map((d) => d.candidate_id))
+
+  const candidatesByProfileId = new Map(
+    (candidates ?? []).map((c) => [c.profile_id, { ...c, hasCv: candidateIdsWithCv.has(c.id) }])
+  )
 
   const accounts: PendingAccount[] = (profiles ?? []).map((p) => ({
     id: p.id,

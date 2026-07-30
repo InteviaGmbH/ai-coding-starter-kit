@@ -30,7 +30,7 @@
 | PROJ-13 | Partnerportal + Partnerfirmen-Kandidatenvorschläge | Roadmap | — | 2026-07-25 |
 | PROJ-14 | Volle Matching-Score-Formel mit Gewichtungen | Approved | [PROJ-14](PROJ-14-volle-matching-score-formel.md) | 2026-07-25 |
 | PROJ-15 | Digitale Multi-Party-Signaturen | Roadmap | — | 2026-07-25 |
-| PROJ-16 | Vollständiges Dokumentenmanagement | Architected | [PROJ-16](PROJ-16-vollstaendiges-dokumentenmanagement.md) | 2026-07-25 |
+| PROJ-16 | Vollständiges Dokumentenmanagement | In Progress | [PROJ-16](PROJ-16-vollstaendiges-dokumentenmanagement.md) | 2026-07-25 |
 | PROJ-17 | Vollständiges Nachrichtensystem | Roadmap | — | 2026-07-25 |
 | PROJ-18 | Alle Benachrichtigungstrigger + Erinnerungslogik | Roadmap | — | 2026-07-25 |
 | PROJ-19 | Vollständige Dashboards für alle Rollen | Roadmap | — | 2026-07-25 |

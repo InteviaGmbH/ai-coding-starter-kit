@@ -167,37 +167,5 @@ export async function updateCandidateQualifications(
   return { success: true }
 }
 
-export async function setOwnCandidateDocumentPath(
-  candidateId: string,
-  path: string
-): Promise<ActionResult> {
-  const actor = await requireOwnCandidateId()
-  if (!actor) {
-    return { success: false, error: "Keine Berechtigung." }
-  }
-
-  // Defense in depth beyond RLS: the component always passes the caller's
-  // own candidateId, but never trust a client-supplied id blindly.
-  if (candidateId !== actor.candidateId) {
-    return { success: false, error: "Keine Berechtigung." }
-  }
-
-  if (!z.string().min(1).safeParse(path).success) {
-    return { success: false, error: "Ungültige Anfrage." }
-  }
-
-  const supabase = await createClient()
-  const { data: updated, error } = await supabase
-    .from("candidates")
-    .update({ cv_document_path: path, cv_uploaded_at: new Date().toISOString() })
-    .eq("id", candidateId)
-    .select("id")
-    .maybeSingle()
-
-  if (error || !updated) {
-    return { success: false, error: "Dokument-Pfad konnte nicht gespeichert werden." }
-  }
-
-  revalidatePath("/candidate/profile")
-  return { success: true }
-}
+// CV upload/replace is now handled by the versioned document management
+// system — see src/app/candidate/documents/actions.ts (PROJ-16).

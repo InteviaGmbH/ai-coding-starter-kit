@@ -4,8 +4,12 @@ import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CandidateDetailActions } from "@/components/portal/candidate-detail-actions"
-import { CandidateDocumentCard } from "@/components/portal/candidate-document-card"
-import { setCandidateDocumentPath } from "@/app/internal/candidates/actions"
+import { CandidateDocumentsManager } from "@/components/portal/candidate-documents-manager"
+import { loadCandidateDocuments } from "@/lib/candidateDocuments/loadDocuments"
+import {
+  saveCandidateDocumentVersion,
+  archiveCandidateDocument,
+} from "@/app/internal/candidates/documents-actions"
 
 export const metadata: Metadata = { title: "Kandidat — Dafinex" }
 
@@ -20,7 +24,7 @@ export default async function CandidateDetailPage({
   const { data: candidate, error: candidateError } = await supabase
     .from("candidates")
     .select(
-      "id, first_name, last_name, phone, skills, region, availability, source_type, cv_document_path, cv_uploaded_at, profile_id, availability_start, availability_end, max_workload_percent, certifications, languages, experience_years, preferred_regions"
+      "id, first_name, last_name, phone, skills, region, availability, source_type, profile_id, availability_start, availability_end, max_workload_percent, certifications, languages, experience_years, preferred_regions"
     )
     .eq("id", id)
     .single()
@@ -33,13 +37,7 @@ export default async function CandidateDetailPage({
     notFound()
   }
 
-  let downloadUrl: string | null = null
-  if (candidate.cv_document_path) {
-    const { data: signed } = await supabase.storage
-      .from("candidate-documents")
-      .createSignedUrl(candidate.cv_document_path, 300)
-    downloadUrl = signed?.signedUrl ?? null
-  }
+  const documents = await loadCandidateDocuments(candidate.id)
 
   return (
     <div className="space-y-6">
@@ -118,7 +116,7 @@ export default async function CandidateDetailPage({
             <p>{candidate.experience_years != null ? `${candidate.experience_years} Jahre` : "—"}</p>
           </div>
           <div className="sm:col-span-2">
-            <p className="text-muted-foreground">Zertifikate</p>
+            <p className="text-muted-foreground">Zertifikate (Selbstangabe — Nachweisdokumente siehe Abschnitt Dokumente unten)</p>
             <div className="mt-1 flex flex-wrap gap-1">
               {candidate.certifications && candidate.certifications.length > 0 ? (
                 candidate.certifications.map((c: string) => (
@@ -162,12 +160,14 @@ export default async function CandidateDetailPage({
         </CardContent>
       </Card>
 
-      <CandidateDocumentCard
+      <CandidateDocumentsManager
         candidateId={candidate.id}
-        documentPath={candidate.cv_document_path}
-        downloadUrl={downloadUrl}
-        uploadedAt={candidate.cv_uploaded_at}
-        onSave={setCandidateDocumentPath}
+        cv={documents.cv}
+        workPermit={documents.workPermit}
+        certificates={documents.certificates}
+        archivedDocuments={documents.archivedDocuments}
+        onSave={(input) => saveCandidateDocumentVersion(candidate.id, input)}
+        onArchive={(documentId) => archiveCandidateDocument(candidate.id, documentId)}
       />
     </div>
   )

@@ -1,8 +1,8 @@
 # PROJ-16: Vollständiges Dokumentenmanagement (Versionierung, Ablauf, Archivierung)
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-07-30
-**Last Updated:** 2026-07-30 (Tech Design ergänzt — siehe Abschnitt "Tech Design (Solution Architect)")
+**Last Updated:** 2026-07-30 (Implementation abgeschlossen — siehe Abschnitt "Implementation Notes")
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — Storage, RLS
@@ -153,6 +153,34 @@ Gespeichert in: bestehende Supabase-Datenbank (zwei neue, verknüpfte Tabellen) 
 
 ### D) Dependencies (packages to install)
 - Keine neuen Pakete — nutzt bereits installierte shadcn-Komponenten (`Accordion`/`Collapsible`, `AlertDialog`, `Input`, `Badge`)
+
+## Implementation Notes
+
+### Datenbank
+- Migration `20260730100000_candidate_document_management.sql`: neue Tabellen `candidate_documents` (Typ/Name/archiviert) und `candidate_document_versions` (Datei/Datum/Ablauf/aktuell), je mit RLS (Kandidat sieht nur eigene Dokumente, internes Personal sieht alle).
+- Partial-Unique-Index setzt "genau ein Dokument pro Kandidat und Typ" für `cv`/`work_permit` durch; Zertifikate bleiben unbeschränkt wiederholbar.
+- Partial-Unique-Index setzt "genau eine aktuelle Version pro Dokument" durch (`is_current`).
+- `candidate_document_belongs_to_caller()` als SECURITY DEFINER-Hilfsfunktion, um RLS-Rekursion zwischen den beiden neuen Tabellen zu vermeiden (etabliertes Muster aus PROJ-20).
+- Spalten-Lockdown-Trigger je Tabelle, analog zu PROJ-20, verhindern dass ein Kandidat fremde Spalten (z.B. `is_sample`) verändert.
+- Neue, nicht-SECURITY-DEFINER RPC `save_candidate_document_version(...)` kapselt "Dokument finden-oder-anlegen, alte Version auf `is_current=false` setzen, neue Version einfügen" atomar in einer Transaktion — sowohl vom Kandidatenportal als auch von der internen Verwaltung als auch bei der Registrierung genutzt.
+- Einmaliges Backfill aus den alten Feldern `candidates.cv_document_path`/`cv_uploaded_at` in die neuen Tabellen; alte Felder bewusst NICHT gelöscht (Sicherheitsnetz).
+
+### Anwendungscode
+- `src/lib/matching` unverändert; neue Logik unter `src/lib/candidateDocuments/` (Schema, Ablauf-Berechnung `getExpiryStatus`, Server-Loader `loadCandidateDocuments`).
+- Neue Server Actions: `src/app/candidate/documents/actions.ts` (Kandidat verwaltet eigene Dokumente) und `src/app/internal/candidates/documents-actions.ts` (internes Personal verwaltet beliebige Kandidaten-Dokumente).
+- Neue UI-Bausteine (gemeinsam genutzt von Kandidatenportal und interner Verwaltung): `candidate-document-slot.tsx` (CV/Arbeitsbewilligung/einzelnes Zertifikat inkl. Upload, Ablauf-Badge, Versionshistorie, Archivieren), `candidate-archived-documents.tsx`, `add-certificate-form.tsx`, `candidate-documents-manager.tsx` (Orchestrierung).
+- `/candidate/profile` und `/internal/candidates/[id]` nutzen jetzt `CandidateDocumentsManager` statt der alten einfachen Dokument-Karte (gelöscht: `candidate-document-card.tsx`).
+- Bestehende, unabhängige Selbstangabe-Zertifikate (Kurzliste als Text, PROJ-20) bleiben unverändert bestehen; UI-Texte an beiden Stellen ergänzt, um die Abgrenzung zu den neuen datei-basierten Zertifikaten klarzustellen.
+- Registrierungsformular (`candidate-register-form.tsx`) lädt den initialen CV jetzt direkt über die neue RPC hoch statt über das alte Feld.
+
+### Nachträglich entdeckte und behobene Regression
+- Nach Abschluss der Kernarbeit ergab eine abschliessende Suche nach verbleibenden Referenzen auf `cv_document_path`/`cv_uploaded_at`, dass die interne Freischaltungs-Seite (`/internal/approvals`, aus PROJ-2) noch das alte Feld abfragte, um anzuzeigen, ob ein neu registrierter Kandidat ein CV hochgeladen hat. Da die Registrierung jetzt in die neuen Tabellen schreibt, hätte dieser Hinweis für jede neue Registrierung fälschlich "kein Dokument" angezeigt.
+- Behoben durch Umstellung der Abfrage in `internal/approvals/page.tsx` auf eine Existenzprüfung gegen `candidate_documents` (Typ `cv`, nicht archiviert) und Anpassung von `PendingAccount`/`ApproveRejectDialog` auf ein einfaches `hasCv`-Flag statt des alten Pfad-Felds.
+
+### Verifikation
+- `npx eslint`: keine Fehler
+- `npx vitest run`: 124/124 Tests grün (inkl. 7 neue Tests für `getExpiryStatus`, Tests für beide neuen Action-Dateien)
+- `npm run build`: erfolgreich, alle Routen kompilieren
 
 ## QA Test Results
 _To be added by /qa_
