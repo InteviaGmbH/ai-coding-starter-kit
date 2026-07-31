@@ -1,8 +1,8 @@
 # PROJ-17: Vollständiges Nachrichtensystem
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-07-31
-**Last Updated:** 2026-07-31 (Allgemeiner Nachrichten-Thread ohne Bezugsentität ergänzt, für Kandidat und Gemeinde)
+**Last Updated:** 2026-07-31 (Tech Design ergänzt — siehe Abschnitt "Tech Design (Solution Architect)")
 
 ## Dependencies
 - Requires: PROJ-2 (Auth & Portal-Grundgerüst) — Rollenprüfung, Portal-Shell (intern/Gemeinde/Kandidat)
@@ -131,12 +131,82 @@ _Keine offenen Fragen._
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Eine einzige `messages`-Tabelle mit Bezugstyp (`request`/`assignment`/`general_candidate`/`general_municipality`) + nullable Bezugs-ID statt vier getrennter Tabellen | Einfacher zu pflegen, eine gemeinsame Filterlogik für „alle meine Nachrichten"/„alle neuen Nachrichten" | 2026-07-31 |
+| Betreff wird als eigenes, nullable Feld auf der Nachrichten-Zeile geführt (nicht auf einer separaten „Thread"-Tabelle), gesetzt bei der ersten Nachricht eines Verlaufs und beim Anzeigen von der jeweils ältesten Nachricht mit gesetztem Betreff übernommen | Vermeidet eine zusätzliche Tabelle nur für den Betreff; ein Verlauf ist bereits durch Bezugstyp+Bezugs-ID eindeutig identifiziert | 2026-07-31 |
+| Gelesen-Status als zwei Boolean-Spalten (`read_by_internal`, `read_by_counterpart`) statt einer nutzerbezogenen Zuordnungstabelle | Deckt das Produkt-Verhalten „automatisch gelesen beim Öffnen durch die jeweils andere Seite" ab, ohne pro-Nutzer-Tracking; passt zum kleinen internen Team, das sich eine gemeinsame „gelesen"-Sicht teilt | 2026-07-31 |
+| Neuer Benachrichtigungstyp „Neue Nachricht" in der bestehenden `notifications`-Tabelle (kein Schema-Update, nur ein neuer zulässiger Wert im bereits text-basierten Typ-Feld) | Wiederverwendung der aus PROJ-11 etablierten Infrastruktur (Glocke, RLS, „als gelesen markieren") | 2026-07-31 |
+| Broadcast-Empfänger-Ermittlung für Nachrichten von Gemeinde/Kandidat an „alle aktiven internen Nutzer" nutzt denselben Admin-Client-Lookup wie der bestehende „Neue Anfrage"-Broadcast aus PROJ-11 | Bereits etabliertes, sicheres Muster (Admin-Client nur lesend für den Empfänger-Lookup, der eigentliche Insert bleibt RLS-geprüft) — keine neue Sicherheitsfläche | 2026-07-31 |
+| Separate `candidate_notes`/`request_notes`/`assignment_notes`-Zeilen über eine gemeinsame `internal_notes`-Tabelle mit Bezugstyp+Bezugs-ID (analog zu `messages`), statt drei eigener Tabellen | Konsistent mit der Nachrichten-Tabelle; eine Tabelle statt drei vereinfacht RLS (eine Policy: „nur intern") und künftige Erweiterungen um weitere Entitätstypen | 2026-07-31 |
+| RLS für `messages`: Gemeinde-Zugriff geprüft über Zugehörigkeit der referenzierten Anfrage zur eigenen Gemeinde bzw. direkten Profilvergleich beim allgemeinen Thread; Kandidat analog über den referenzierten Einsatz bzw. den eigenen Kandidaten-Datensatz; internes Personal uneingeschränkt (`is_internal_role()`) | Gleiches Verteidigungs-in-der-Tiefe-Prinzip wie überall sonst im Projekt: serverseitige Rollenprüfung in der Server Action plus RLS als zweite Linie | 2026-07-31 |
+| RLS für `internal_notes`: ausschliesslich `is_internal_role()`, keine Ausnahme | Notizen dürfen unter keinen Umständen für Gemeinde/Kandidat sichtbar sein, auch nicht versehentlich über einen direkten API-Aufruf | 2026-07-31 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### A) Component Structure
+
+```
+Anfrage-Detailseite (Gemeinde: /municipality/requests/[id], Intern: /internal/requests/[id])
+└── Nachrichten-Bereich (neu, gemeinsamer Baustein)
+      ├── Verlauf (bisherige Nachrichten, Absender + Zeitpunkt, neueste unten)
+      ├── Betreff-Anzeige (gesetzt) bzw. Betreff-Eingabe (nur bei der allerersten Nachricht)
+      └── Formular „Neue Nachricht" (Inhalt + Senden-Button)
+
+Einsatz-Detailseite (Kandidat: /candidate/assignments/[id], Intern: /internal/assignments/[id])
+└── Nachrichten-Bereich (derselbe Baustein wie oben, andere Bezugsentität)
+
+Dashboard (Kandidat: /candidate/dashboard, Gemeinde: /municipality/dashboard)
+└── „Allgemeine Nachrichten an Dafinex" (derselbe Baustein, ohne Anfrage-/Einsatz-Bezug)
+
+Kandidaten-/Anfrage-/Einsatz-Detailseite (nur intern: /internal/candidates/[id],
+/internal/requests/[id], /internal/assignments/[id])
+└── Interne Notizen (neuer, klar als „intern" gekennzeichneter, separater Bereich)
+      ├── Notizliste (Autor, Zeitpunkt, Text, neueste zuerst)
+      ├── Formular „Neue Notiz"
+      └── „Löschen" pro Notiz (mit Bestätigungsdialog)
+
+Neue Seite /notifications (eigene Version pro Portal: intern/Gemeinde/Kandidat)
+├── Filterleiste (Status: alle/gelesen/ungelesen · Typ: Dropdown inkl. „Neue Nachricht")
+├── Liste (paginiert, 20 pro Seite)
+└── Leerer Zustand („Keine Benachrichtigungen gefunden")
+
+Glocken-Symbol (bestehend aus PROJ-11, erweitert)
+└── neuer Link „Alle anzeigen" → /notifications
+```
+
+### B) Data Model (plain language)
+
+**Nachrichten** (eine neue Tabelle, eine Zeile pro einzelner Nachricht):
+- Bezugstyp: Anfrage / Einsatz / Allgemein-Kandidat / Allgemein-Gemeinde
+- Bezugs-ID (bei „Allgemein" leer, da keine Anfrage/Einsatz zugrunde liegt)
+- Betreff (nur bei der ersten Nachricht eines Verlaufs gesetzt, danach leer/übernommen)
+- Inhalt (Text, bis 5000 Zeichen)
+- Absender (Person + erkennbar, ob Gemeinde/Kandidat/intern)
+- Zeitpunkt
+- Gelesen-Status je Seite: „von Dafinex gelesen" und „von der Gegenseite (Gemeinde/Kandidat) gelesen" — zwei getrennte Merker, kein einzelnes gelesen/ungelesen-Feld, weil auf der internen Seite mehrere Personen denselben Verlauf teilen
+
+**Interne Notizen** (eine neue Tabelle, eine Zeile pro Notiz):
+- Bezugstyp: Kandidat / Anfrage / Einsatz
+- Bezugs-ID
+- Text (bis 2000 Zeichen)
+- Autor (Name der internen Person)
+- Zeitpunkt
+
+**Bestehende `notifications`-Tabelle** (aus PROJ-11, unverändert im Aufbau): bekommt lediglich einen neuen möglichen Wert für den Benachrichtigungstyp („Neue Nachricht"), keine neue Spalte nötig.
+
+### C) Tech Decisions (justified for PM)
+
+1. **Ein Bezugstyp+Bezugs-ID-Paar statt vier getrennter Nachrichten-Tabellen.** Eine einzige Tabelle für alle vier Nachrichten-Kontexte (Anfrage/Einsatz/beide Allgemein-Varianten) ist einfacher zu pflegen, und die Filterlogik für „alle meine Nachrichten" bleibt an einer Stelle statt über vier Tabellen verteilt.
+2. **Gelesen-Status ist seitenbezogen, nicht personenbezogen.** Da mehrere interne Personen denselben Verlauf sehen (2-3-köpfiges Team), würde ein Gelesen-Status pro einzelner Person unnötige Komplexität schaffen — „von Dafinex gelesen" reicht, sobald irgendeine interne Person den Verlauf geöffnet hat (konsistent mit dem bereits etablierten „jedes interne Personal darf..."-Muster bei Notizen).
+3. **Wiederverwendung der bestehenden Benachrichtigungs-Infrastruktur** (Glocke, `notifications`-Tabelle aus PROJ-11) für den Hinweis auf neue Nachrichten, statt eines zweiten, separaten Benachrichtigungswegs.
+4. **Ein gemeinsamer UI-Baustein „Nachrichten-Bereich"** für alle vier Kontexte (Anfrage/Einsatz/beide Allgemein-Varianten) sorgt für konsistentes Verhalten und weniger Aufwand als vier eigene Implementierungen.
+5. **Zugriffsschutz strikt nach Bezug getrennt:** Eine Gemeinde sieht ausschliesslich ihre eigenen Anfrage-Threads plus ihren eigenen allgemeinen Thread; ein Kandidat ausschliesslich seine eigenen Einsatz-Threads plus seinen eigenen allgemeinen Thread; internes Personal sieht alles. Interne Notizen sind in jedem Fall ausschliesslich für internes Personal sichtbar.
+6. **Bestehende `Pagination`-Komponente (shadcn, bereits installiert)** wird für `/notifications` wiederverwendet.
+
+### D) Dependencies (packages to install)
+- Keine neuen Pakete — nutzt bereits installierte shadcn-Komponenten (`Textarea`, `Card`, `Pagination`, `Select`, `Badge`, `AlertDialog`).
 
 ## QA Test Results
 _To be added by /qa_
