@@ -4,6 +4,9 @@ import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { MunicipalityDetailActions } from "@/components/portal/municipality-detail-actions"
+import { MessageThread } from "@/components/portal/message-thread"
+import { loadMessageThread } from "@/lib/messages/loadThread"
+import { sendInternalMessage } from "@/app/internal/messages/actions"
 
 export const metadata: Metadata = { title: "Gemeinde — Dafinex" }
 
@@ -36,6 +39,11 @@ export default async function MunicipalityDetailPage({
     .select("id, full_name, email, account_status")
     .eq("municipality_id", id)
     .order("created_date", { ascending: true })
+
+  const thread = await loadMessageThread(
+    { messageType: "general_municipality", municipalityId: municipality.id },
+    true
+  )
 
   return (
     <div className="space-y-6">
@@ -103,6 +111,20 @@ export default async function MunicipalityDetailPage({
           )}
         </CardContent>
       </Card>
+
+      <MessageThread
+        title="Allgemeine Nachrichten"
+        messages={thread.messages}
+        subject={thread.subject}
+        viewerIsInternal={true}
+        counterpartLabel="Gemeinde"
+        onSend={(input) =>
+          sendInternalMessage(
+            { messageType: "general_municipality", municipalityId: municipality.id },
+            input
+          )
+        }
+      />
     </div>
   )
 }

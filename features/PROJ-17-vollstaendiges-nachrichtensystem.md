@@ -1,8 +1,8 @@
 # PROJ-17: Vollständiges Nachrichtensystem
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-07-31
-**Last Updated:** 2026-07-31 (Tech Design ergänzt — siehe Abschnitt "Tech Design (Solution Architect)")
+**Last Updated:** 2026-07-31 (Implementation abgeschlossen — siehe Abschnitt "Implementation Notes")
 
 ## Dependencies
 - Requires: PROJ-2 (Auth & Portal-Grundgerüst) — Rollenprüfung, Portal-Shell (intern/Gemeinde/Kandidat)
@@ -207,6 +207,29 @@ Glocken-Symbol (bestehend aus PROJ-11, erweitert)
 
 ### D) Dependencies (packages to install)
 - Keine neuen Pakete — nutzt bereits installierte shadcn-Komponenten (`Textarea`, `Card`, `Pagination`, `Select`, `Badge`, `AlertDialog`).
+
+## Implementation Notes
+
+### Datenbank
+- Migration `20260731090000_messages_and_internal_notes.sql`: neue Tabellen `messages` (message_type: request/assignment/general_candidate/general_municipality, mit CHECK-Constraint, der genau eine der vier Referenzspalten zum Typ passend erzwingt) und `internal_notes` (entity_type: candidate/request/assignment, gleiches Muster).
+- `messages` ist nach dem Senden unveränderlich: ein Trigger (`enforce_message_read_only_updates`) erlaubt nur noch das Ändern der zwei unabhängigen Gelesen-Flags (`read_by_internal`/`read_by_counterpart`), und jede Seite darf nur ihr eigenes Flag setzen (intern nur `read_by_internal`, Gegenseite nur `read_by_counterpart`) — nötig, weil das interne Team eine Handvoll Personen sind, die sich einen gemeinsamen Verlauf teilen, nicht eine einzelne Person.
+- Ein zweiter Trigger (`set_message_sender_flags_on_insert`) setzt `sent_by_internal` sowie die initialen Gelesen-Flags serverseitig anhand der tatsächlichen Rolle des Aufrufers, unabhängig davon, was der Client sendet — verhindert, dass eine Gemeinde/ein Kandidat die eigene Nachricht fälschlich als „von intern bereits gelesen" markiert.
+- RLS auf `messages` nutzt bewusst direkte Subqueries gegen `personnel_requests`/`assignments`/`candidate_proposals` statt neuer SECURITY-DEFINER-Hilfsfunktionen — sicher, weil keine dieser Tabellen ihrerseits `messages` abfragt (kein Zyklus wie beim 42P17-Bug aus PROJ-20, der spezifisch ein Zwei-Tabellen-Zyklus zwischen `personnel_requests` und `candidate_proposals` war).
+- `internal_notes`: RLS ausschliesslich `is_internal_role()`, keine Update-Policy (nur Hinzufügen/Löschen, kein Editieren, wie in der Spec festgelegt).
+- Neue `notifications`-Policy `notifications_insert_counterpart_new_message`, analog zum bestehenden PROJ-11-Muster für „Neue Anfrage" — erlaubt einer Gemeinde/einem Kandidaten, alle aktiven internen Nutzer über eine neue Nachricht zu benachrichtigen.
+
+### Anwendungscode
+- Neue Server Actions: `src/app/internal/messages/actions.ts` (`sendInternalMessage`, deckt alle vier Thread-Typen ab, benachrichtigt die jeweils passende Gegenseite), `src/app/municipality/messages/actions.ts` und `src/app/candidate/messages/actions.ts` (je zwei Actions für Anfrage-/Einsatz-Thread bzw. den allgemeinen Thread, inkl. Eigentums-Prüfung als Verteidigung in der Tiefe über RLS hinaus), `src/app/internal/notes/actions.ts` (`addInternalNote`/`deleteInternalNote`, inkl. Aktivitätenprotokoll-Eintrag).
+- Geteilte Bausteine: `src/lib/messages/loadThread.ts` (lädt einen Verlauf und markiert ihn beim Öffnen automatisch als gelesen — kein Klick nötig), `src/lib/notes/loadNotes.ts`, `src/lib/notifications/broadcast-new-message.ts` + `get-active-internal-profile-ids.ts` (Admin-Client-Lookup nur lesend, exakt das PROJ-11-Muster, wiederverwendet für den neuen „Neue Nachricht"-Broadcast).
+- Neue UI-Komponenten: `src/components/portal/message-thread.tsx` (ein gemeinsamer Baustein für alle vier Thread-Typen, in allen drei Portalen wiederverwendet), `src/components/portal/internal-notes-panel.tsx` (visuell klar als „Nur intern sichtbar" gekennzeichnet, getrennt vom Nachrichten-Bereich).
+- Eingebaut in: `/municipality/requests/[id]` + `/internal/requests/[id]` (Anfrage-Thread), `/candidate/assignments/[id]` + `/internal/assignments/[id]` (Einsatz-Thread), `/candidate/dashboard` + `/internal/candidates/[id]` (allgemeiner Kandidat-Thread), `/municipality/dashboard` + `/internal/municipalities/[id]` (allgemeiner Gemeinde-Thread). Interne Notizen zusätzlich auf `/internal/requests/[id]`, `/internal/assignments/[id]`, `/internal/candidates/[id]`.
+- Neue Seite `/notifications` (je eine dünne Variante pro Portal: `/internal/notifications`, `/municipality/notifications`, `/candidate/notifications`), mit Filtern (Status, Typ inkl. neuem „Neue Nachricht") und Pagination (20/Seite, bestehende shadcn-`Pagination`-Komponente). Glocke bekommt einen neuen „Alle anzeigen"-Link zur jeweiligen Portal-Version.
+- `activity-log-table.tsx`: neue deutsche Beschreibungen für `candidate_note`/`request_note`/`assignment_note` × `note_added`/`note_deleted`, damit neue Notiz-Aktionen im Aktivitätenprotokoll lesbar erscheinen statt über den generischen Fallback.
+
+### Verifikation
+- `npx eslint` (alle neuen/geänderten Dateien): keine Fehler
+- `npx vitest run`: 143/143 Tests grün (19 neu: Berechtigungsprüfung, Eigentums-Prüfung bei fremder Anfrage/fremdem Einsatz, erfolgreicher Versand + Benachrichtigung, Notiz hinzufügen/löschen inkl. Aktivitätenprotokoll)
+- `npm run build`: erfolgreich, alle Routen (inkl. der drei neuen `/notifications`-Routen) kompilieren
 
 ## QA Test Results
 _To be added by /qa_

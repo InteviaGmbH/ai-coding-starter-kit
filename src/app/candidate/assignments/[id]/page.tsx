@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { assignmentStatusLabel } from "@/components/portal/assignments-table"
 import { MunicipalityContractCard } from "@/components/portal/municipality-contract-card"
+import { MessageThread } from "@/components/portal/message-thread"
+import { loadMessageThread } from "@/lib/messages/loadThread"
+import { sendCandidateAssignmentMessage } from "@/app/candidate/messages/actions"
 
 export const metadata: Metadata = { title: "Einsatz — Dafinex" }
 
@@ -62,6 +65,8 @@ export default async function CandidateAssignmentDetailPage({
     console.error("Vertrag konnte nicht geladen werden:", contractError)
   }
 
+  const thread = await loadMessageThread({ messageType: "assignment", assignmentId: id }, false)
+
   let generatedDownloadUrl: string | null = null
   let signedDownloadUrl: string | null = null
   if (contract?.generated_document_path) {
@@ -107,6 +112,14 @@ export default async function CandidateAssignmentDetailPage({
         contract={contract ? { status: contract.status as "generated" | "signed" } : null}
         generatedDownloadUrl={generatedDownloadUrl}
         signedDownloadUrl={signedDownloadUrl}
+      />
+
+      <MessageThread
+        messages={thread.messages}
+        subject={thread.subject}
+        viewerIsInternal={false}
+        counterpartLabel="Kandidat"
+        onSend={(input) => sendCandidateAssignmentMessage(id, input)}
       />
     </div>
   )

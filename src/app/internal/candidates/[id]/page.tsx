@@ -10,6 +10,12 @@ import {
   saveCandidateDocumentVersion,
   archiveCandidateDocument,
 } from "@/app/internal/candidates/documents-actions"
+import { MessageThread } from "@/components/portal/message-thread"
+import { InternalNotesPanel } from "@/components/portal/internal-notes-panel"
+import { loadMessageThread } from "@/lib/messages/loadThread"
+import { loadInternalNotes } from "@/lib/notes/loadNotes"
+import { sendInternalMessage } from "@/app/internal/messages/actions"
+import { addInternalNote, deleteInternalNote } from "@/app/internal/notes/actions"
 
 export const metadata: Metadata = { title: "Kandidat — Dafinex" }
 
@@ -37,7 +43,11 @@ export default async function CandidateDetailPage({
     notFound()
   }
 
-  const documents = await loadCandidateDocuments(candidate.id)
+  const [documents, thread, notes] = await Promise.all([
+    loadCandidateDocuments(candidate.id),
+    loadMessageThread({ messageType: "general_candidate", candidateId: candidate.id }, true),
+    loadInternalNotes("candidate", candidate.id),
+  ])
 
   return (
     <div className="space-y-6">
@@ -168,6 +178,23 @@ export default async function CandidateDetailPage({
         archivedDocuments={documents.archivedDocuments}
         onSave={(input) => saveCandidateDocumentVersion(candidate.id, input)}
         onArchive={(documentId) => archiveCandidateDocument(candidate.id, documentId)}
+      />
+
+      <MessageThread
+        title="Allgemeine Nachrichten"
+        messages={thread.messages}
+        subject={thread.subject}
+        viewerIsInternal={true}
+        counterpartLabel="Kandidat"
+        onSend={(input) =>
+          sendInternalMessage({ messageType: "general_candidate", candidateId: candidate.id }, input)
+        }
+      />
+
+      <InternalNotesPanel
+        notes={notes}
+        onAdd={(content) => addInternalNote("candidate", candidate.id, content)}
+        onDelete={(noteId) => deleteInternalNote("candidate", candidate.id, noteId)}
       />
     </div>
   )

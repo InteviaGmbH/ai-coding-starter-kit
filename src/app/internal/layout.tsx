@@ -32,6 +32,7 @@ export default async function InternalLayout({ children }: { children: React.Rea
       navItems={navItems}
       userLabel={profile.fullName ?? profile.email}
       notifications={notifications}
+      notificationsHref="/internal/notifications"
     >
       {children}
     </PortalShell>

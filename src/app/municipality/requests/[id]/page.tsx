@@ -6,6 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { PersonnelRequestFormDialog } from "@/components/portal/personnel-request-form-dialog"
 import { Button } from "@/components/ui/button"
+import { MessageThread } from "@/components/portal/message-thread"
+import { loadMessageThread } from "@/lib/messages/loadThread"
+import { sendMunicipalityRequestMessage } from "@/app/municipality/messages/actions"
 
 export const metadata: Metadata = { title: "Anfrage — Dafinex" }
 
@@ -41,6 +44,11 @@ export default async function MunicipalityRequestDetailPage({
     .from("candidate_proposals")
     .select("id", { count: "exact", head: true })
     .eq("request_id", request.id)
+
+  const thread = await loadMessageThread(
+    { messageType: "request", requestId: request.id },
+    false
+  )
 
   return (
     <div className="space-y-6">
@@ -119,6 +127,14 @@ export default async function MunicipalityRequestDetailPage({
           )}
         </CardContent>
       </Card>
+
+      <MessageThread
+        messages={thread.messages}
+        subject={thread.subject}
+        viewerIsInternal={false}
+        counterpartLabel="Gemeinde"
+        onSend={(input) => sendMunicipalityRequestMessage(request.id, input)}
+      />
     </div>
   )
 }

@@ -6,6 +6,12 @@ import { Badge } from "@/components/ui/badge"
 import { assignmentStatusLabel } from "@/components/portal/assignments-table"
 import { AssignmentStatusActions } from "@/components/portal/assignment-status-actions"
 import { ContractCard } from "@/components/portal/contract-card"
+import { MessageThread } from "@/components/portal/message-thread"
+import { InternalNotesPanel } from "@/components/portal/internal-notes-panel"
+import { loadMessageThread } from "@/lib/messages/loadThread"
+import { loadInternalNotes } from "@/lib/notes/loadNotes"
+import { sendInternalMessage } from "@/app/internal/messages/actions"
+import { addInternalNote, deleteInternalNote } from "@/app/internal/notes/actions"
 
 export const metadata: Metadata = { title: "Einsatz — Dafinex" }
 
@@ -57,6 +63,11 @@ export default async function InternalAssignmentDetailPage({
     signedDownloadUrl = signed?.signedUrl ?? null
   }
 
+  const [thread, notes] = await Promise.all([
+    loadMessageThread({ messageType: "assignment", assignmentId: id }, true),
+    loadInternalNotes("assignment", id),
+  ])
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
@@ -96,6 +107,22 @@ export default async function InternalAssignmentDetailPage({
         contract={contract ? { id: contract.id, status: contract.status as "generated" | "signed" } : null}
         generatedDownloadUrl={generatedDownloadUrl}
         signedDownloadUrl={signedDownloadUrl}
+      />
+
+      <MessageThread
+        messages={thread.messages}
+        subject={thread.subject}
+        viewerIsInternal={true}
+        counterpartLabel="Kandidat"
+        onSend={(input) =>
+          sendInternalMessage({ messageType: "assignment", assignmentId: assignment.id }, input)
+        }
+      />
+
+      <InternalNotesPanel
+        notes={notes}
+        onAdd={(content) => addInternalNote("assignment", assignment.id, content)}
+        onDelete={(noteId) => deleteInternalNote("assignment", assignment.id, noteId)}
       />
     </div>
   )

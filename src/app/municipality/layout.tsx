@@ -28,6 +28,7 @@ export default async function MunicipalityLayout({ children }: { children: React
       navItems={navItems}
       userLabel={profile.fullName ?? profile.email}
       notifications={notifications}
+      notificationsHref="/municipality/notifications"
     >
       {children}
     </PortalShell>

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -15,7 +16,13 @@ export interface NotificationItem {
   createdDate: string
 }
 
-export function NotificationBell({ notifications }: { notifications: NotificationItem[] }) {
+export function NotificationBell({
+  notifications,
+  notificationsHref,
+}: {
+  notifications: NotificationItem[]
+  notificationsHref: string
+}) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [pendingId, setPendingId] = useState<string | null>(null)
@@ -95,6 +102,15 @@ export function NotificationBell({ notifications }: { notifications: Notificatio
             ))}
           </ul>
         )}
+        <div className="border-t px-3 py-2 text-center">
+          <Link
+            href={notificationsHref}
+            className="text-xs font-medium text-primary hover:underline"
+            onClick={() => setOpen(false)}
+          >
+            Alle anzeigen
+          </Link>
+        </div>
       </PopoverContent>
     </Popover>
   )

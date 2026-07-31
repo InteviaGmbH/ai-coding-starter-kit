@@ -6,6 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { InternalRequestDetailActions } from "@/components/portal/internal-request-detail-actions"
+import { MessageThread } from "@/components/portal/message-thread"
+import { InternalNotesPanel } from "@/components/portal/internal-notes-panel"
+import { loadMessageThread } from "@/lib/messages/loadThread"
+import { loadInternalNotes } from "@/lib/notes/loadNotes"
+import { sendInternalMessage } from "@/app/internal/messages/actions"
+import { addInternalNote, deleteInternalNote } from "@/app/internal/notes/actions"
 
 export const metadata: Metadata = { title: "Anfrage — Dafinex" }
 
@@ -45,6 +51,11 @@ export default async function InternalRequestDetailPage({
     .from("candidate_proposals")
     .select("id", { count: "exact", head: true })
     .eq("request_id", request.id)
+
+  const [thread, notes] = await Promise.all([
+    loadMessageThread({ messageType: "request", requestId: request.id }, true),
+    loadInternalNotes("request", request.id),
+  ])
 
   return (
     <div className="space-y-6">
@@ -112,6 +123,22 @@ export default async function InternalRequestDetailPage({
           </div>
         </CardContent>
       </Card>
+
+      <MessageThread
+        messages={thread.messages}
+        subject={thread.subject}
+        viewerIsInternal={true}
+        counterpartLabel="Gemeinde"
+        onSend={(input) =>
+          sendInternalMessage({ messageType: "request", requestId: request.id }, input)
+        }
+      />
+
+      <InternalNotesPanel
+        notes={notes}
+        onAdd={(content) => addInternalNote("request", request.id, content)}
+        onDelete={(noteId) => deleteInternalNote("request", request.id, noteId)}
+      />
     </div>
   )
 }

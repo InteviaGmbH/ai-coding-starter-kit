@@ -36,6 +36,18 @@ const ACTIVITY_DESCRIPTIONS: Record<string, Record<string, string>> = {
     generated: "Vertrag generiert",
     signed: "Vertrag unterschrieben",
   },
+  candidate_note: {
+    note_added: "Interne Notiz zu Kandidat hinzugefügt",
+    note_deleted: "Interne Notiz zu Kandidat gelöscht",
+  },
+  request_note: {
+    note_added: "Interne Notiz zu Anfrage hinzugefügt",
+    note_deleted: "Interne Notiz zu Anfrage gelöscht",
+  },
+  assignment_note: {
+    note_added: "Interne Notiz zu Einsatz hinzugefügt",
+    note_deleted: "Interne Notiz zu Einsatz gelöscht",
+  },
 }
 
 export function describeActivity(entityType: string, action: string): string {

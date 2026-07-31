@@ -20,6 +20,7 @@ interface PortalShellProps {
   navItems: PortalNavItem[]
   userLabel: string
   notifications: NotificationItem[]
+  notificationsHref: string
   children: React.ReactNode
 }
 
@@ -52,6 +53,7 @@ export function PortalShell({
   navItems,
   userLabel,
   notifications,
+  notificationsHref,
   children,
 }: PortalShellProps) {
   const pathname = usePathname()
@@ -94,7 +96,7 @@ export function PortalShell({
           <span className="hidden text-sm font-medium md:inline" />
           <div className="flex items-center gap-3">
             <span className="hidden text-sm text-muted-foreground sm:inline">{userLabel}</span>
-            <NotificationBell notifications={notifications} />
+            <NotificationBell notifications={notifications} notificationsHref={notificationsHref} />
             <LogoutButton variant="ghost" />
           </div>
         </header>

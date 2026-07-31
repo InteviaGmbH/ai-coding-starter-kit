@@ -28,6 +28,7 @@ export default async function CandidateLayout({ children }: { children: React.Re
       navItems={navItems}
       userLabel={profile.fullName ?? profile.email}
       notifications={notifications}
+      notificationsHref="/candidate/notifications"
     >
       {children}
     </PortalShell>

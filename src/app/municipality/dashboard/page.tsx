@@ -2,6 +2,9 @@ import type { Metadata } from "next"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/server"
 import { getCurrentProfile } from "@/lib/auth/get-current-profile"
+import { MessageThread } from "@/components/portal/message-thread"
+import { loadMessageThread } from "@/lib/messages/loadThread"
+import { sendMunicipalityGeneralMessage } from "@/app/municipality/messages/actions"
 
 export const metadata: Metadata = { title: "Dashboard — Dafinex" }
 
@@ -39,6 +42,13 @@ export default async function MunicipalityDashboardPage() {
     { label: "Aktive Einsätze", value: activeAssignmentsResult.count ?? 0 },
   ]
 
+  const thread = profile?.municipalityId
+    ? await loadMessageThread(
+        { messageType: "general_municipality", municipalityId: profile.municipalityId },
+        false
+      )
+    : null
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Dashboard</h1>
@@ -56,6 +66,17 @@ export default async function MunicipalityDashboardPage() {
           </Card>
         ))}
       </div>
+
+      {thread && (
+        <MessageThread
+          title="Allgemeine Nachrichten an Dafinex"
+          messages={thread.messages}
+          subject={thread.subject}
+          viewerIsInternal={false}
+          counterpartLabel="Gemeinde"
+          onSend={sendMunicipalityGeneralMessage}
+        />
+      )}
     </div>
   )
 }
