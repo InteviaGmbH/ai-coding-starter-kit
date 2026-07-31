@@ -1,8 +1,8 @@
 # PROJ-18: Alle Benachrichtigungstrigger + Erinnerungslogik
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-07-31
-**Last Updated:** 2026-07-31
+**Last Updated:** 2026-07-31 (Tech Design ergänzt — siehe Abschnitt "Tech Design (Solution Architect)")
 
 ## Dependencies
 - Requires: PROJ-11 (Kern-Benachrichtigungen) — bestehende `notifications`-Tabelle, Glocke, `/notifications`-Seite (PROJ-17)
@@ -81,12 +81,69 @@ _Keine offenen Fragen._
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Zwei neue Boolean-Spalten auf `candidate_document_versions` (`expiring_soon_notified`, `expired_notified`) statt einer separaten "Erinnerungs-Log"-Tabelle | Kleinste zusätzliche Struktur, die Mehrfach-Erinnerungen pro Version zuverlässig verhindert; kein Bedarf an einem vollständigen Protokoll für den Piloten | 2026-07-31 |
+| Ablauf-Check läuft serverseitig beim Laden von `/internal/candidates/[id]` (Erweiterung von `loadCandidateDocuments` bzw. ein direkt danach ausgeführter Zusatzschritt), nicht als eigene API-Route | Konsistent mit dem bereits in PROJ-16/17 etablierten Muster, Seiteneffekte (z.B. "als gelesen markieren") direkt im serverseitigen Laden einer Seite auszuführen, ohne zusätzlichen Client-Roundtrip | 2026-07-31 |
+| Fünf neue `notifications.type`-Werte: `assignment_accepted`, `assignment_completed`, `contract_signed`, `document_expiring_soon`, `document_expired` (`assignment_active` bleibt unverändert, bekommt nur einen zweiten Empfänger) | `notifications.type` ist bereits ein freies Textfeld ohne CHECK-Constraint (siehe PROJ-11/17) — neue Werte brauchen keine Schema-Änderung | 2026-07-31 |
+| Einsatz-/Vertrags-Trigger ermitteln den Kandidaten-Empfänger über denselben Join-Pfad, der in `internal/assignments/actions.ts`/`internal/contracts/actions.ts` bereits für die Anfrage-Ermittlung existiert (`assignment → candidate_proposals → candidates.profile_id`), keine neue Abfrage-Struktur | Wiederverwendung eines bereits vorhandenen, bewährten Join-Musters statt einer neuen Query-Form | 2026-07-31 |
+| Broadcast-Empfänger-Ermittlung für die Ablauf-Erinnerung nutzt den bereits in PROJ-17 extrahierten gemeinsamen Helper (aktive interne Profile ermitteln), keine neue Implementierung | Vermeidet Doppelarbeit, dieselbe Logik existiert bereits als wiederverwendbare Funktion | 2026-07-31 |
+
+
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### A) Component Structure
+
+Diese Spec fügt keine neuen Bildschirme hinzu — sie erweitert ausschliesslich bereits bestehende Abläufe um zusätzliche Benachrichtigungs-Empfänger bzw. einen neuen, im Hintergrund laufenden Erinnerungs-Check:
+
+```
+Bestehende interne Aktion "Einsatz-Status weiterschalten"
+  (auf /internal/assignments/[id])
+└── erweitert um: bei "akzeptiert"/"aktiv"/"abgeschlossen" jetzt ZWEI
+      Empfänger statt einem (Gemeinde-Ansprechperson UND Kandidat,
+      falls vorhanden)
+
+Bestehende interne Aktion "Unterschriebenen Vertrag hochladen"
+  (auf /internal/assignments/[id])
+└── erweitert um: neue Benachrichtigung an Gemeinde UND Kandidat
+
+Bestehende Kandidaten-Detailseite (/internal/candidates/[id])
+└── beim Laden zusätzlich: stiller Hintergrund-Check "läuft ein
+      Dokument dieses Kandidaten gerade neu ab?"
+      ├── Ja, und noch nicht gemeldet → Erinnerung an alle aktiven
+      │     internen Nutzer, Dokument-Version wird als "gemeldet" markiert
+      └── Nein oder bereits gemeldet → nichts passiert, keine Duplikate
+
+Benachrichtigungsseite (/notifications, aus PROJ-17)
+└── zeigt die neuen Typen ("Einsatz akzeptiert/abgeschlossen",
+      "Vertrag unterschrieben", "Dokument läuft bald ab/abgelaufen")
+      mit verständlicher deutscher Bezeichnung im Typ-Filter
+```
+
+### B) Data Model (plain language)
+
+Keine neue Tabelle für die Benachrichtigungen selbst — sie nutzen weiterhin die bestehende Benachrichtigungs-Tabelle aus PROJ-11/17, nur mit fünf neuen möglichen "Typ"-Werten.
+
+Eine kleine Ergänzung an der bestehenden Dokument-Versionen-Tabelle (aus PROJ-16) ist nötig, um Mehrfach-Erinnerungen zu verhindern:
+
+**Jede Dokument-Version** bekommt zusätzlich zwei Merker:
+- Wurde für "läuft bald ab" bereits eine Erinnerung verschickt? (ja/nein)
+- Wurde für "abgelaufen" bereits eine Erinnerung verschickt? (ja/nein)
+
+Beide starten bei "nein" und werden einmalig auf "ja" gesetzt, sobald die jeweilige Erinnerung tatsächlich verschickt wurde — dieselbe Dokument-Version kann danach nie wieder dieselbe Erinnerung auslösen, aber "läuft bald ab" und "abgelaufen" sind zwei unabhängige Merker (beide können im Lauf der Zeit einmal auf "ja" wechseln).
+
+### C) Tech Decisions (justified for PM)
+
+1. **Kein neuer Hintergrund-Job/Cron.** Der Ablauf-Check läuft als kleiner zusätzlicher Schritt, wenn internes Personal ohnehin die Kandidatenseite öffnet — genau wie beim Nutzer bereits als "Bestätigung" gewünscht. Kein neuer Infrastruktur-Baustein, keine neuen Umgebungsvariablen/Secrets.
+2. **Zwei einfache Ja/Nein-Merker pro Dokument-Version statt eines komplexeren Protokolls.** Reicht vollständig aus, um Mehrfach-Erinnerungen zu verhindern, ohne eine zusätzliche Tabelle nur für "wer wurde wann worüber informiert" einzuführen.
+3. **Wiederverwendung der bestehenden Benachrichtigungs-Infrastruktur** (Tabelle, Glocke, `/notifications`-Seite aus PROJ-11/17) für alle neuen Trigger — nur neue Typ-Werte, keine Strukturänderung.
+4. **Einsatz-/Vertrags-Benachrichtigungen werden in den bereits bestehenden internen Aktionen ergänzt** (Status weiterschalten, Vertrag unterschreiben), nicht als neue, separate Bausteine — konsistent mit dem bisherigen Vorgehen aus PROJ-11.
+5. **Broadcast an alle aktiven internen Nutzer für Ablauf-Erinnerungen**, wiederverwendung des bereits aus PROJ-11 bekannten "Alle aktiven internen Nutzer ermitteln"-Mechanismus (zuletzt in PROJ-17 für "Neue Nachricht" wiederverwendet).
+
+### D) Dependencies (packages to install)
+- Keine neuen Pakete.
 
 ## QA Test Results
 _To be added by /qa_
