@@ -4,6 +4,7 @@ import { z } from "zod"
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { getCurrentProfile, INTERNAL_ROLES } from "@/lib/auth/get-current-profile"
+import { notifyAssignmentParties } from "@/lib/notifications/notify-assignment-parties"
 
 interface ActionResult {
   success: boolean
@@ -126,7 +127,9 @@ export async function setSignedDocument(
 
   const { data: contract } = await supabase
     .from("contracts")
-    .select("id, status, assignment_id")
+    .select(
+      "id, status, assignment_id, assignment:assignments(proposal:candidate_proposals(candidate:candidates(profile_id), request:personnel_requests(title, created_by_id)))",
+    )
     .eq("id", contractId)
     .single()
 
@@ -153,6 +156,34 @@ export async function setSignedDocument(
     entity_id: contractId,
     action: "signed",
   })
+
+  const assignment = Array.isArray(contract.assignment) ? contract.assignment[0] : contract.assignment
+  const proposal = assignment
+    ? Array.isArray(assignment.proposal)
+      ? assignment.proposal[0]
+      : assignment.proposal
+    : null
+  const request = proposal
+    ? Array.isArray(proposal.request)
+      ? proposal.request[0]
+      : proposal.request
+    : null
+  const candidate = proposal
+    ? Array.isArray(proposal.candidate)
+      ? proposal.candidate[0]
+      : proposal.candidate
+    : null
+
+  if (request?.title) {
+    await notifyAssignmentParties(
+      {
+        municipalityProfileId: request.created_by_id ?? null,
+        candidateProfileId: candidate?.profile_id ?? null,
+      },
+      "contract_signed",
+      `Der unterschriebene Vertrag für „${request.title}" ist verfügbar.`
+    )
+  }
 
   revalidatePath(`/internal/assignments/${contract.assignment_id}`)
   revalidatePath(`/municipality/assignments/${contract.assignment_id}`)

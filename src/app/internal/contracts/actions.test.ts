@@ -15,6 +15,7 @@ const activeAdminProfile = {
 const ASSIGNMENT_ID = "88888888-8888-4888-a888-888888888888"
 const CONTRACT_ID = "99999999-9999-4999-a999-999999999999"
 const MUNICIPALITY_USER_ID = "22222222-2222-4222-a222-222222222222"
+const CANDIDATE_USER_ID = "44444444-4444-4444-a444-444444444444"
 
 interface MockOpts {
   assignment?: {
@@ -24,7 +25,17 @@ interface MockOpts {
   } | null
   existingContract?: boolean
   insertError?: { message: string } | null
-  contract?: { id: string; status: string; assignment_id: string } | null
+  contract?: {
+    id: string
+    status: string
+    assignment_id: string
+    assignment?: {
+      proposal: {
+        request: { title: string; created_by_id: string | null } | null
+        candidate?: { profile_id: string | null } | null
+      } | null
+    } | null
+  } | null
   updateError?: { message: string } | null
 }
 
@@ -188,5 +199,50 @@ describe("setSignedDocument", () => {
     const result = await setSignedDocument(CONTRACT_ID, "path/signed-2.pdf")
     expect(result.success).toBe(false)
     expect(result.error).toMatch(/bereits eine unterschriebene/)
+  })
+
+  it("notifies both the municipality and the candidate", async () => {
+    const client = mockSupabaseClient({
+      contract: {
+        id: CONTRACT_ID,
+        status: "generated",
+        assignment_id: ASSIGNMENT_ID,
+        assignment: {
+          proposal: {
+            request: { title: "Sozialarbeiter:in", created_by_id: MUNICIPALITY_USER_ID },
+            candidate: { profile_id: CANDIDATE_USER_ID },
+          },
+        },
+      },
+    })
+    const { setSignedDocument } = await importActions(client)
+
+    await setSignedDocument(CONTRACT_ID, "path/signed.pdf")
+    expect(client.from("notifications").insert).toHaveBeenCalledWith([
+      expect.objectContaining({ recipient_id: MUNICIPALITY_USER_ID, type: "contract_signed" }),
+      expect.objectContaining({ recipient_id: CANDIDATE_USER_ID, type: "contract_signed" }),
+    ])
+  })
+
+  it("skips the candidate recipient when the candidate has no portal account", async () => {
+    const client = mockSupabaseClient({
+      contract: {
+        id: CONTRACT_ID,
+        status: "generated",
+        assignment_id: ASSIGNMENT_ID,
+        assignment: {
+          proposal: {
+            request: { title: "Sozialarbeiter:in", created_by_id: MUNICIPALITY_USER_ID },
+            candidate: { profile_id: null },
+          },
+        },
+      },
+    })
+    const { setSignedDocument } = await importActions(client)
+
+    await setSignedDocument(CONTRACT_ID, "path/signed.pdf")
+    expect(client.from("notifications").insert).toHaveBeenCalledWith([
+      expect.objectContaining({ recipient_id: MUNICIPALITY_USER_ID, type: "contract_signed" }),
+    ])
   })
 })

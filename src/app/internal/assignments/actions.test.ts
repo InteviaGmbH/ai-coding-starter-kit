@@ -23,7 +23,10 @@ interface MockOpts {
   assignment?: {
     id: string
     status: string
-    proposal?: { request: { title: string; created_by_id: string | null } | null } | null
+    proposal?: {
+      request: { title: string; created_by_id: string | null } | null
+      candidate?: { profile_id: string | null } | null
+    } | null
   } | null
   updateError?: { message: string } | null
 }
@@ -191,12 +194,12 @@ describe("advanceAssignmentStatus", () => {
     expect(client.from("activity_log").insert).toHaveBeenCalledWith(
       expect.objectContaining({ action: "active" }),
     )
-    expect(client.from("notifications").insert).toHaveBeenCalledWith(
+    expect(client.from("notifications").insert).toHaveBeenCalledWith([
       expect.objectContaining({ recipient_id: MUNICIPALITY_USER_ID, type: "assignment_active" }),
-    )
+    ])
   })
 
-  it("does not notify anyone when advancing to a non-active status", async () => {
+  it("notifies the request creator when becoming accepted", async () => {
     const client = mockSupabaseClient({
       assignment: {
         id: ASSIGNMENT_ID,
@@ -207,7 +210,49 @@ describe("advanceAssignmentStatus", () => {
     const { advanceAssignmentStatus } = await importActions(client)
 
     await advanceAssignmentStatus(ASSIGNMENT_ID)
-    expect(client.from("notifications").insert).not.toHaveBeenCalled()
+    expect(client.from("notifications").insert).toHaveBeenCalledWith([
+      expect.objectContaining({ recipient_id: MUNICIPALITY_USER_ID, type: "assignment_accepted" }),
+    ])
+  })
+
+  it("notifies both the request creator and the candidate when becoming completed", async () => {
+    const CANDIDATE_USER_ID = "66666666-6666-4666-a666-666666666666"
+    const client = mockSupabaseClient({
+      assignment: {
+        id: ASSIGNMENT_ID,
+        status: "active",
+        proposal: {
+          request: { title: "Sozialarbeiter:in", created_by_id: MUNICIPALITY_USER_ID },
+          candidate: { profile_id: CANDIDATE_USER_ID },
+        },
+      },
+    })
+    const { advanceAssignmentStatus } = await importActions(client)
+
+    await advanceAssignmentStatus(ASSIGNMENT_ID)
+    expect(client.from("notifications").insert).toHaveBeenCalledWith([
+      expect.objectContaining({ recipient_id: MUNICIPALITY_USER_ID, type: "assignment_completed" }),
+      expect.objectContaining({ recipient_id: CANDIDATE_USER_ID, type: "assignment_completed" }),
+    ])
+  })
+
+  it("skips the candidate recipient when the candidate has no portal account", async () => {
+    const client = mockSupabaseClient({
+      assignment: {
+        id: ASSIGNMENT_ID,
+        status: "active",
+        proposal: {
+          request: { title: "Sozialarbeiter:in", created_by_id: MUNICIPALITY_USER_ID },
+          candidate: { profile_id: null },
+        },
+      },
+    })
+    const { advanceAssignmentStatus } = await importActions(client)
+
+    await advanceAssignmentStatus(ASSIGNMENT_ID)
+    expect(client.from("notifications").insert).toHaveBeenCalledWith([
+      expect.objectContaining({ recipient_id: MUNICIPALITY_USER_ID, type: "assignment_completed" }),
+    ])
   })
 
   it("rejects advancing a completed assignment", async () => {

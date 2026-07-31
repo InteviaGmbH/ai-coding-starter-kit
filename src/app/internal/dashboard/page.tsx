@@ -1,11 +1,17 @@
 import type { Metadata } from "next"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/server"
+import { runReminderChecks } from "@/lib/reminders/run-reminder-checks"
 
 export const metadata: Metadata = { title: "Dashboard — Dafinex" }
 
 export default async function InternalDashboardPage() {
   const supabase = await createClient()
+
+  // PROJ-18: event-based reminder check — no cron infrastructure exists,
+  // so this runs as a side effect of loading the one page every internal
+  // user visits on every login.
+  await runReminderChecks()
 
   const [municipalitiesResult, candidatesResult, openRequestsResult] = await Promise.all([
     supabase.from("municipalities").select("*", { count: "exact", head: true }),

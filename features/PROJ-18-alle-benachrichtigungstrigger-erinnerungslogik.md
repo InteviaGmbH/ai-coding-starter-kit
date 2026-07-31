@@ -1,8 +1,8 @@
 # PROJ-18: Alle Benachrichtigungstrigger + Erinnerungslogik
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-07-31
-**Last Updated:** 2026-07-31 (Scope um drei zusätzliche Erinnerungstypen erweitert — Einsatzbeginn/-ende, fehlende Unterschrift, unbearbeiteter Vorschlag; alle Erinnerungs-Checks laufen jetzt auf `/internal/dashboard` statt auf einer einzelnen, selten besuchten Detailseite)
+**Last Updated:** 2026-07-31 (Implementation abgeschlossen — siehe Abschnitt "Implementation Notes")
 
 ## Dependencies
 - Requires: PROJ-11 (Kern-Benachrichtigungen) — bestehende `notifications`-Tabelle, Glocke, `/notifications`-Seite (PROJ-17)
@@ -175,6 +175,25 @@ Jeder Merker startet bei "nein" und wird einmalig auf "ja" gesetzt, sobald die j
 
 ### D) Dependencies (packages to install)
 - Keine neuen Pakete.
+
+## Implementation Notes
+
+### Datenbank
+- Migration `20260731100000_reminder_flags.sql`: sieben neue Boolean-Spalten (Default `false`) über vier bestehende Tabellen — `candidate_document_versions.expiring_soon_notified`/`expired_notified`, `assignments.start_reminder_sent`/`end_reminder_sent`, `contracts.signature_reminder_sent`, `candidate_proposals.decision_reminder_sent`. Keine RLS-/Trigger-Änderungen nötig: internes Personal hat auf allen vier Tabellen bereits uneingeschränkten UPDATE-Zugriff, und keine bestehende Spalten-Lockdown-Trigger betrifft interne Akteure.
+
+### Anwendungscode
+- `src/lib/reminders/run-reminder-checks.ts`: zentrale `runReminderChecks()`-Funktion, die nacheinander alle vier Bereiche prüft (Dokument-Ablauf, Einsatz-Termine, Vertrags-Unterschrift, Vorschlag-Entscheidung) und dabei jeweils die passende Dedup-Spalte setzt, sobald tatsächlich erinnert wurde.
+- `src/lib/notifications/notify-assignment-parties.ts`: neuer gemeinsamer Helper, der Gemeinde und/oder Kandidat benachrichtigt und dabei fehlende Empfänger (kein Portal-Konto) stillschweigend überspringt — genutzt von `advanceAssignmentStatus`, `setSignedDocument` und den beiden Termin-Erinnerungen.
+- `src/app/internal/assignments/actions.ts` (`advanceAssignmentStatus`): benachrichtigt jetzt bei allen drei Statuswechseln (akzeptiert/aktiv/abgeschlossen) sowohl Gemeinde als auch Kandidat, statt nur bei „aktiv" nur die Gemeinde.
+- `src/app/internal/contracts/actions.ts` (`setSignedDocument`): neue Benachrichtigung „Vertrag unterschrieben" an Gemeinde und Kandidat (vorher: keine Benachrichtigung bei dieser Statusänderung).
+- `src/app/internal/dashboard/page.tsx`: ruft `runReminderChecks()` vor dem Rendern auf — der zentrale Ort, an dem alle fünf Erinnerungstypen ausgelöst werden, ereignisbasiert beim Laden dieser garantiert oft besuchten Seite.
+- `src/lib/notifications/type-labels.ts`: neun neue deutsche Typ-Bezeichnungen für die `/notifications`-Seite (PROJ-17).
+- Bestehende Tests für `advanceAssignmentStatus`/`setSignedDocument` aktualisiert (Notifications-Insert erfolgt jetzt als Array über den neuen Helper statt als einzelnes Objekt); neue Tests für alle drei Einsatz-Statuswechsel sowie für `setSignedDocument`s neue Benachrichtigungslogik ergänzt.
+
+### Verifikation
+- `npx eslint` (alle neuen/geänderten Dateien): keine Fehler
+- `npx vitest run`: 152/152 Tests grün (9 neu für `run-reminder-checks.ts`, plus erweiterte/neue Tests für die beiden geänderten Action-Dateien)
+- `npm run build`: erfolgreich, alle Routen kompilieren
 
 ## QA Test Results
 _To be added by /qa_

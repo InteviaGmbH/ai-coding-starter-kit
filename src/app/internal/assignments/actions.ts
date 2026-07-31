@@ -4,6 +4,22 @@ import { z } from "zod"
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { getCurrentProfile, INTERNAL_ROLES } from "@/lib/auth/get-current-profile"
+import { notifyAssignmentParties } from "@/lib/notifications/notify-assignment-parties"
+
+const ASSIGNMENT_STATUS_NOTIFICATION: Record<string, { type: string; message: (title: string) => string }> = {
+  accepted: {
+    type: "assignment_accepted",
+    message: (title) => `Ihr Einsatz für „${title}" wurde akzeptiert.`,
+  },
+  active: {
+    type: "assignment_active",
+    message: (title) => `Ihr Einsatz für „${title}" ist jetzt aktiv.`,
+  },
+  completed: {
+    type: "assignment_completed",
+    message: (title) => `Ihr Einsatz für „${title}" wurde abgeschlossen.`,
+  },
+}
 
 interface ActionResult {
   success: boolean
@@ -118,7 +134,7 @@ export async function advanceAssignmentStatus(assignmentId: string): Promise<Act
   const { data: assignment } = await supabase
     .from("assignments")
     .select(
-      "id, status, proposal:candidate_proposals(request:personnel_requests(title, created_by_id))",
+      "id, status, proposal:candidate_proposals(candidate:candidates(profile_id), request:personnel_requests(title, created_by_id))",
     )
     .eq("id", assignmentId)
     .single()
@@ -150,19 +166,29 @@ export async function advanceAssignmentStatus(assignmentId: string): Promise<Act
     action: nextStatus,
   })
 
-  if (nextStatus === "active") {
+  const notificationSpec = ASSIGNMENT_STATUS_NOTIFICATION[nextStatus]
+  if (notificationSpec) {
     const proposal = Array.isArray(assignment.proposal) ? assignment.proposal[0] : assignment.proposal
     const request = proposal
       ? Array.isArray(proposal.request)
         ? proposal.request[0]
         : proposal.request
       : null
-    if (request?.created_by_id) {
-      await supabase.from("notifications").insert({
-        recipient_id: request.created_by_id,
-        type: "assignment_active",
-        message: `Ihr Einsatz für „${request.title}" ist jetzt aktiv.`,
-      })
+    const candidate = proposal
+      ? Array.isArray(proposal.candidate)
+        ? proposal.candidate[0]
+        : proposal.candidate
+      : null
+
+    if (request?.title) {
+      await notifyAssignmentParties(
+        {
+          municipalityProfileId: request.created_by_id ?? null,
+          candidateProfileId: candidate?.profile_id ?? null,
+        },
+        notificationSpec.type,
+        notificationSpec.message(request.title)
+      )
     }
   }
 

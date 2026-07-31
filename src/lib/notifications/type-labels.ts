@@ -12,6 +12,15 @@ export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   account_approved: "Konto freigeschaltet",
   account_rejected: "Konto abgelehnt",
   new_message: "Neue Nachricht",
+  assignment_accepted: "Einsatz akzeptiert",
+  assignment_completed: "Einsatz abgeschlossen",
+  contract_signed: "Vertrag unterschrieben",
+  document_expiring_soon: "Dokument läuft bald ab",
+  document_expired: "Dokument abgelaufen",
+  assignment_starting_soon: "Einsatzbeginn bald",
+  assignment_ending_soon: "Einsatzende bald",
+  contract_signature_pending: "Unterschrift ausstehend",
+  proposal_decision_pending: "Vorschlag ohne Entscheidung",
 }
 
 export function notificationTypeLabel(type: string): string {
