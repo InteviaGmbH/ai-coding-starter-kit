@@ -1,8 +1,8 @@
 # PROJ-18: Alle Benachrichtigungstrigger + Erinnerungslogik
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-07-31
-**Last Updated:** 2026-07-31 (Implementation abgeschlossen — siehe Abschnitt "Implementation Notes")
+**Last Updated:** 2026-07-31 (QA bestanden, 1 Medium + 2 Low-Bugs notiert und zurückgestellt, keine Critical/High — siehe "QA Test Results")
 
 ## Dependencies
 - Requires: PROJ-11 (Kern-Benachrichtigungen) — bestehende `notifications`-Tabelle, Glocke, `/notifications`-Seite (PROJ-17)
@@ -196,7 +196,56 @@ Jeder Merker startet bei "nein" und wird einmalig auf "ja" gesetzt, sobald die j
 - `npm run build`: erfolgreich, alle Routen kompilieren
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-07-31
+**App URL:** Kein Browser-Tool/keine funktionierenden Supabase-Zugangsdaten in dieser Umgebung — siehe Testmethode
+**Tester:** QA Engineer (AI)
+
+### Testmethode
+Wie bereits bei PROJ-14/16/17 etabliert: kein Browser-Tool und keine `.env.local` in dieser Umgebung. Abdeckung dieses Durchgangs:
+1. Vollständige Vitest-Suite (152/152) — 9 neue Tests für `run-reminder-checks.ts` (alle vier Bereiche: Dokument-Ablauf inkl. Dedup, Einsatz-Termine mit allen drei Empfängern, Vertrags-Unterschrift, Vorschlag-Entscheidung), erweiterte/neue Tests für `advanceAssignmentStatus` (alle drei Statuswechsel, Kandidat-ohne-Konto-Fall) und `setSignedDocument` (neue Benachrichtigungslogik)
+2. Gezielter Code-Audit der Migration (sieben neue Spalten, keine RLS-/Trigger-Änderung nötig, verifiziert dass internes Personal auf allen vier betroffenen Tabellen bereits uneingeschränkten UPDATE-Zugriff hat) und der zentralen Check-Funktion (Query-Filter, Dedup-Logik, Join-Pfade, Nullable-Handling)
+3. Detaillierte Nachrechnung der Datumslogik für alle vier Zeitschwellen-Checks (Einsatzbeginn/-ende, Vertrag-Unterschrift, Vorschlag-Entscheidung) — dabei BUG-18-1 gefunden (siehe unten)
+4. Regressionsprüfung: bestehende Tests für `internal/assignments/actions.ts` und neue Tests für `internal/contracts/actions.ts` bestätigen, dass die bestehende Kernlogik (Statusreihenfolge, Duplikat-Prüfung, Aktivitätenprotokoll) unverändert funktioniert
+5. Kein neuer E2E-Test ergänzt (gleiche Begründung wie PROJ-14/16/17: Login-Flows und Zeitsteuerung in dieser Umgebung nicht sinnvoll testbar)
+
+### Acceptance Criteria Status
+**20/20 Acceptance Criteria erfüllt** (eine davon mit einer dokumentierten Genauigkeits-Einschränkung, siehe BUG-18-1):
+- [x] Einsatz akzeptiert/aktiv/abgeschlossen → Gemeinde + Kandidat benachrichtigt — Vitest (`advanceAssignmentStatus`-Tests für alle drei Übergänge)
+- [x] Kandidat ohne Portal-Konto → seine Benachrichtigung übersprungen, Gemeinde erhält ihre trotzdem — Vitest (`skips the candidate recipient...`-Test)
+- [x] Vertrag unterschrieben → Gemeinde + Kandidat benachrichtigt, fehlender Kandidat übersprungen — Vitest (`setSignedDocument`-Tests)
+- [x] Zentraler Check läuft beim Laden von `/internal/dashboard`, systemweit — Code-Review (`runReminderChecks()` in `internal/dashboard/page.tsx`, keine Beschränkung auf eine einzelne Entität)
+- [x] Bereits gemeldeter Sachverhalt löst keine zweite Erinnerung aus — Code-Review (jede Query filtert explizit auf das jeweilige `..._notified`/`..._reminder_sent = false`) + Vitest (`does not re-notify...`-Test)
+- [x] Dokument-Ablauf-Erinnerung mit Kandidat/Typ/Datum — Vitest + Code-Review
+- [x] „Läuft bald ab" und „Abgelaufen" lösen getrennt je einmal aus — Code-Review (zwei unabhängige Spalten/Bedingungen)
+- [x] Neue Dokument-Version kann unabhängig erinnern — Code-Review (Spalten defaulten pro Zeile auf `false`, keine Vererbung von der Vorgängerversion)
+- [x] Einsatzbeginn/-ende bald → Gemeinde + Kandidat + intern — Vitest + Code-Review, s. jedoch **BUG-18-1**
+- [x] Kein Enddatum → keine „Ende bald"-Erinnerung — Code-Review (`.not("end_date", "is", null)`)
+- [x] Beide Termin-Erinnerungen je Einsatz höchstens einmal — Code-Review (Dedup-Spalten)
+- [x] Fehlende Vertragsunterschrift ≥ 3 Tage → intern benachrichtigt, einmalig — Vitest + Code-Review
+- [x] Unbearbeiteter Vorschlag ≥ 3 Tage → intern benachrichtigt, einmalig — Vitest + Code-Review
+- [x] Neue Typen erscheinen auf `/notifications` mit deutscher Bezeichnung — Code-Review (`NOTIFICATION_TYPE_LABELS` um neun Einträge ergänzt)
+
+### Security Audit Results
+- [x] Der zentrale Check läuft ausschliesslich im bereits rollenbasiert geschützten Ladepfad von `/internal/dashboard` (hinter `internal/layout.tsx`s Rollen-/Status-Prüfung) — keine neue Angriffsfläche
+- [x] Keine neuen RLS-Policies nötig; verifiziert, dass internes Personal auf allen vier betroffenen Tabellen (inkl. der neuen Spalten) bereits uneingeschränkten UPDATE-Zugriff hat und keine Spalten-Lockdown-Trigger internes Personal einschränkt
+- [x] Kein SQL-Injection-Risiko: alle Queries parametrisiert
+- [x] Keine neue Datenexposition: `getActiveInternalProfileIds()` liefert weiterhin nur `id`-Werte, keine zusätzlichen Felder
+- [x] Regression: bestehende `advanceAssignmentStatus`/`setSignedDocument`-Kernlogik (Statusreihenfolge, Duplikat-Prüfung) unverändert, durch aktualisierte/neue Tests bestätigt
+
+### Bugs Found
+
+| ID | Severity | Beschreibung | Repro |
+|----|----------|----|----|
+| BUG-18-1 | Medium | Die Einsatzbeginn-/Einsatzende-bald-Erinnerungen haben keine untere Datumsgrenze: Die Abfrage filtert nur `start_date`/`end_date ≤ heute+3 Tage`, nicht zusätzlich `≥ heute`. Ein Einsatz, dessen Startdatum bereits eine Woche in der Vergangenheit liegt, aber dessen Status nie manuell auf „aktiv" gesetzt wurde, löst dieselbe „beginnt in Kürze"-Formulierung aus wie ein tatsächlich in 2 Tagen beginnender Einsatz — die Nachricht ist dann sachlich falsch (es beginnt nicht "in Kürze", es hätte längst beginnen sollen). Der Hinweis selbst ist weiterhin nützlich (er macht auf den vergessenen Statuswechsel aufmerksam), nur der Wortlaut ist irreführend. | `src/lib/reminders/run-reminder-checks.ts:122-134` (Start) und `:155-167` (Ende) — `.lte("start_date"/"end_date", threshold)` ohne begleitendes `.gte(..., heute)` |
+| BUG-18-2 | Low | Dieselbe UTC-vs-Europe/Zurich-Ungenauigkeit wie bereits in PROJ-16 (BUG-16-3) dokumentiert: `daysFromNowIsoDate`/`isoTimestampDaysAgo` berechnen "heute"/"vor X Tagen" anhand von UTC, nicht der lokalen Zeitzone. Da die Schweiz im Sommer UTC+2 ist, gibt es täglich ein ca. 2-stündiges Fenster um lokal Mitternacht, in dem die Schwellenwerte um bis zu einen Tag verschoben sein können. | `src/lib/reminders/run-reminder-checks.ts:8-18` |
+| BUG-18-3 | Low | `getActiveInternalProfileIds()` (Admin-Client-Aufruf) wird bei einem einzelnen Dashboard-Aufruf bis zu viermal unabhängig aufgerufen (einmal je Prüfbereich), statt einmal zentral ermittelt und wiederverwendet zu werden. Bei Pilot-Massstab (kleines Team) keine spürbare Performance-Auswirkung, aber vermeidbare Redundanz. | `src/lib/reminders/run-reminder-checks.ts` — je eigener Aufruf in `checkDocumentExpiry`, `checkAssignmentDates`, `checkPendingSignatures`, `checkPendingProposalDecisions` |
+
+**Kritische/Hohe Bugs: 0**
+**Medium: 1, Low: 2** — gemäss Nutzervorgabe notiert und zurückgestellt (Zeitdruck vor Kunden-Präsentation), keine Fixes in dieser Runde.
+
+### Production-Ready Decision
+**READY: YES** — keine Critical/High-Bugs. Status auf **Approved** gesetzt.
 
 ## Deployment
 _To be added by /deploy_
