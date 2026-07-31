@@ -1,8 +1,8 @@
 # PROJ-17: Vollständiges Nachrichtensystem
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-07-31
-**Last Updated:** 2026-07-31 (Implementation abgeschlossen — siehe Abschnitt "Implementation Notes")
+**Last Updated:** 2026-07-31 (QA bestanden, 2 Low-Bugs notiert und zurückgestellt, keine Critical/High — siehe "QA Test Results")
 
 ## Dependencies
 - Requires: PROJ-2 (Auth & Portal-Grundgerüst) — Rollenprüfung, Portal-Shell (intern/Gemeinde/Kandidat)
@@ -232,7 +232,71 @@ Glocken-Symbol (bestehend aus PROJ-11, erweitert)
 - `npm run build`: erfolgreich, alle Routen (inkl. der drei neuen `/notifications`-Routen) kompilieren
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-07-31
+**App URL:** Kein Browser-Tool/keine funktionierenden Supabase-Zugangsdaten in dieser Umgebung — siehe Testmethode
+**Tester:** QA Engineer (AI)
+
+### Testmethode
+Wie bereits bei PROJ-14/16/20 etabliert: kein Browser-Tool und keine `.env.local` in dieser Umgebung. Abdeckung dieses Durchgangs:
+1. Vollständige Vitest-Suite (143/143, 19 neu) — Berechtigungsprüfung, Eigentums-Prüfung bei fremder Anfrage/fremdem Einsatz, erfolgreicher Versand inkl. korrekter Benachrichtigungs-Zielperson, Notiz hinzufügen/löschen inkl. Aktivitätenprotokoll-Eintrag
+2. Gezielter Code-Audit aller neuen/geänderten Dateien: Migration (beide Trigger, beide CHECK-Constraints, alle vier RLS-Policy-Zweige je Rolle), alle sechs neuen Server-Action-Dateien, alle neuen UI-Komponenten, die Einbindung in acht bestehende Seiten
+3. Gezielte Impersonations-Analyse der `messages`-RLS: durchgespielt, was passiert, wenn eine Gemeinde versucht, `message_type='general_candidate'`/`assignment` zu senden oder einen fremden `request_id`/`assignment_id` anzugeben, bzw. ein Kandidat versucht, `message_type='request'`/`general_municipality` zu senden — in jedem Fall wertet `current_candidate_id()`/`current_municipality_id()` für die jeweils andere Rolle zu `NULL` aus, wodurch der Vergleich nie zutrifft und die Operation an der RLS `WITH CHECK`-Klausel scheitert
+4. Verifiziert, dass der Gelesen-Status-Update-Trigger (`enforce_message_read_only_updates`) sowohl Inhaltsänderungen als auch ein Vortäuschen des jeweils fremden Gelesen-Flags in derselben Anfrage zuverlässig blockiert (ganze Anweisung schlägt fehl, keine Teilanwendung)
+5. Bestehende PROJ-2/11-E2E-Tests (unauthentifizierte Redirects) bleiben für dieselben Portal-Layouts gültig; kein neuer Playwright-Test ergänzt (gleiche Begründung wie PROJ-14/16: Login-Flows in dieser Umgebung nicht ausführbar)
+
+### Acceptance Criteria Status
+- [x] Anfrage-Nachrichtenverlauf sichtbar (Gemeinde/intern), chronologisch mit Absender/Zeitpunkt — Code-Review (`MessageThread` + `loadMessageThread`)
+- [x] Betreff optional bei erster Nachricht, danach nur noch Inhalt — Code-Review (`isFirstMessage`-Logik in `MessageThread`)
+- [x] Leere Nachricht → Validierungsfehler — Zod (`sendMessageSchema`) + Client-Check
+- [x] Gemeinde sendet Nachricht → alle aktiven internen Nutzer sehen sie und werden benachrichtigt — Vitest + Code-Review (`broadcastNewMessageToInternal`)
+- [x] Internes Personal antwortet → Ersteller der Anfrage wird benachrichtigt — Vitest (`sendInternalMessage`-Test)
+- [x] Fremde Anfrage nicht einsehbar (Gemeinde) — RLS-Analyse + Vitest (Eigentums-Prüfung in der Server Action)
+- [x] Einsatz-Nachrichtenverlauf (Kandidat/intern), gleiches Verhalten — Code-Review, gleicher `MessageThread`-Baustein
+- [x] Kandidat sendet Nachricht → Benachrichtigung an alle aktiven internen Nutzer — Vitest
+- [x] Internes Personal antwortet → zugehöriger Kandidat wird benachrichtigt — Code-Review (`sendInternalMessage`, Join über `candidate_proposals`)
+- [x] Fremder Einsatz nicht einsehbar (Kandidat) — RLS-Analyse + Vitest
+- [x] Gemeinde kann nicht auf Einsatz-Verlauf zugreifen und umgekehrt — RLS-Analyse (kein Gemeinde-Zweig für `message_type='assignment'`, kein Kandidat-Zweig für `'request'`/`'general_municipality'`)
+- [x] Ungelesene Nachrichten optisch erkennbar, automatisch gelesen beim Öffnen — Code-Review (`loadMessageThread` markiert vor dem Laden als gelesen)
+- [x] Interne Notizen: separater, als „intern" gekennzeichneter Bereich, neueste zuerst — Code-Review (`InternalNotesPanel`, Badge „Nur intern sichtbar")
+- [x] Leere Notiz → Validierungsfehler — Zod (`addNoteSchema`) + Vitest
+- [x] Keine Notizen → Hinweistext — Code-Review
+- [x] Notiz löschen mit Bestätigungsdialog → dauerhaft entfernt — Vitest + Code-Review (`AlertDialog`)
+- [x] Gemeinde/Kandidat kann nicht auf interne Notizen zugreifen — RLS-Analyse (`internal_notes_select` ausschliesslich `is_internal_role()`, kein Ausnahme-Zweig)
+- [x] Notiz-Aktion erscheint im Aktivitätenprotokoll — Vitest (`activity_log`-Insert-Assertion) + neue deutsche Beschreibungen in `activity-log-table.tsx`
+- [x] `/notifications`: vollständige Historie, Pagination (20/Seite) — Code-Review (`loadNotificationsPage`, `.range()`)
+- [x] Filter nach Status/Typ (inkl. „Neue Nachricht") — Code-Review (`NotificationsFilterBar`, `NOTIFICATION_TYPE_LABELS`)
+- [x] Kein Filter-Treffer → Hinweistext — Code-Review (`NotificationsList` Empty State)
+- [x] Als gelesen markieren aktualisiert Liste + Glocken-Zähler — Code-Review (bestehende `markNotificationRead` + `router.refresh()`)
+- [x] Glocke hat Link „Alle anzeigen" zur jeweiligen Portal-Seite — Code-Review (`notification-bell.tsx`)
+- [x] Fremde Benachrichtigungen nicht über `/notifications` einsehbar — Code-Review (Query immer auf `getCurrentProfile().id` skaliert) + bestehende RLS `notifications_select_own`
+- [x] Kandidat ohne Einsatz: allgemeiner Thread auf Dashboard verfügbar — Code-Review (`/candidate/dashboard`, `message_type='general_candidate'`)
+- [x] Gemeinde ohne Anfrage: allgemeiner Thread auf Dashboard verfügbar — Code-Review (`/municipality/dashboard`, `message_type='general_municipality'`)
+- [x] Allgemeiner Thread bleibt bei späterer Anfrage/Einsatz unverändert bestehen (keine Zusammenführung) — Code-Review (getrennte `message_type`-Werte, keine Migrations-/Merge-Logik vorhanden)
+
+**27/27 Acceptance Criteria erfüllt.**
+
+### Security Audit Results
+- [x] Authentication/Authorization: alle sechs neuen Server Actions prüfen `accountStatus === "active"` + passende Rolle, zusätzlich RLS als zweite Linie
+- [x] Impersonationsversuche über falsche `message_type`/`candidate_id`/`municipality_id`/`request_id`/`assignment_id`-Kombinationen scheitern zuverlässig an der RLS `WITH CHECK`-Klausel (durchgespielt für alle vier Rollen-Kombinationen, siehe Testmethode Punkt 3)
+- [x] Nachrichten sind nach dem Senden unveränderlich; jede Seite kann ausschliesslich ihr eigenes Gelesen-Flag setzen, durchgesetzt durch einen Trigger unabhängig von RLS (zweite, DB-interne Verteidigungslinie)
+- [x] Interne Notizen sind unter keiner Rollen-Kombination für Gemeinde/Kandidat sichtbar (kein Ausnahme-Zweig in der RLS-Policy, im Gegensatz zu `messages`)
+- [x] Kein SQL-Injection-Risiko: alle Queries parametrisiert (Supabase-Client/PL-pgSQL-Parameter)
+- [x] Keine neuen Secrets/sensiblen Daten in Client-Code oder API-Antworten
+- [x] Regression: `NotificationBell`/`PortalShell` erhielten ein neues Pflicht-Prop (`notificationsHref`); alle drei Portal-Layouts sowie das Vitest-Suite-Ergebnis bestätigen, dass nichts Bestehendes gebrochen wurde
+
+### Bugs Found
+
+| ID | Severity | Beschreibung | Repro |
+|----|----------|----|----|
+| BUG-17-1 | Low | `MessageThread` scrollt beim Öffnen/nach dem Senden nicht automatisch zur neuesten Nachricht — bei einem langen Verlauf (mehr als die sichtbare Höhe von `max-h-96`) ist die neueste Nachricht unten ausserhalb des sichtbaren Bereichs und muss manuell heruntergescrollt werden. | `src/components/portal/message-thread.tsx` — Nachrichtenliste hat kein `useEffect`/`scrollIntoView` beim Mount oder nach erfolgreichem Senden |
+| BUG-17-2 | Low | Die Vor/Zurück-Buttons der Pagination auf `/notifications` bleiben auf der ersten bzw. letzten Seite anklickbar — `aria-disabled` ist gesetzt, aber da es sich um einfache `<a href>`-Links (shadcn `PaginationLink`) handelt, verhindert das nicht den tatsächlichen Klick. Harmlos (lädt einfach dieselbe Seite erneut), aber leicht irreführend. | `src/components/portal/notifications-page-content.tsx` — kein `pointer-events-none`/echtes Disable auf Seite 1 bzw. letzter Seite |
+
+**Kritische/Hohe Bugs: 0**
+**Low: 2** — gemäss Nutzervorgabe notiert und zurückgestellt (Zeitdruck vor Kunden-Präsentation), keine Fixes in dieser Runde.
+
+### Production-Ready Decision
+**READY: YES** — keine Critical/High-Bugs. Status auf **Approved** gesetzt.
 
 ## Deployment
 _To be added by /deploy_
