@@ -1,8 +1,8 @@
 # PROJ-19: Vollständige Dashboards für alle Rollen
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-07-31
-**Last Updated:** 2026-08-01 (Implementation abgeschlossen — siehe Abschnitt "Implementation Notes")
+**Last Updated:** 2026-08-01 (QA bestanden, 1 Medium + 1 Low-Bug notiert und zurückgestellt, keine Critical/High — siehe "QA Test Results")
 
 ## Dependencies
 - Requires: PROJ-2 (Auth & Portal-Grundgerüst) — Portal-Shell, Rollenprüfung
@@ -184,7 +184,50 @@ Eine kleine Ergänzung am bestehenden Profil ist nötig, um die Widget-Sichtbark
 - `npm run build`: erfolgreich, alle Routen (inkl. neuer `/partner/dashboard`-Route) kompilieren
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-08-01
+**App URL:** Kein Browser-Tool/keine funktionierenden Supabase-Zugangsdaten in dieser Umgebung — siehe Testmethode
+**Tester:** QA Engineer (AI)
+
+### Testmethode
+Wie bereits bei PROJ-14/16/17/18 etabliert: kein Browser-Tool und keine `.env.local` in dieser Umgebung. Abdeckung dieses Durchgangs:
+1. Vollständige Vitest-Suite (157/157) — 5 neue Tests (`isWidgetVisible`, `updateHiddenDashboardWidgets`: Berechtigung, erfolgreicher Selbst-Update, Fehlerpfad)
+2. Gezielter Code-Audit aller neuen/geänderten Dateien: Migration (additive Spalte, keine RLS-Änderung nötig — verifiziert, dass `hidden_dashboard_widgets` nicht Teil der bestehenden `profiles_update_own_limited`-`WITH CHECK`-Einschränkungen ist), alle neuen Loader/Komponenten, die drei erweiterten Dashboard-Seiten, den neuen `/partner`-Zweig
+3. Rollen-Redirect-Logik für `partner_company` nachvollzogen (aktiv → Platzhalter, pending/rejected → bestehende Status-Weiterleitung, greift korrekt da `getPortalPathForProfile` den Status-Check vor dem Rollen-Zweig prüft)
+4. Regressionsprüfung: `getCurrentProfile()`-Schnittstellenerweiterung (`hiddenDashboardWidgets`) bricht keine bestehende Nutzung — durch `npm run build`s TypeScript-Prüfung sowie die weiterhin grüne Gesamt-Testsuite bestätigt
+5. Kein neuer E2E-Test ergänzt (gleiche Begründung wie in den vorherigen Runden: Login-Flows in dieser Umgebung nicht sinnvoll testbar)
+
+### Acceptance Criteria Status
+**23/23 Acceptance Criteria erfüllt** (eine mit dokumentierter Abweichung, siehe BUG-19-1):
+- [x] Alle bestehenden Kennzahlen-Kacheln (intern/Gemeinde/Kandidat) unverändert — Code-Review
+- [x] Aktivitäts-Vorschau (intern: Aktivitätenprotokoll; Gemeinde/Kandidat: eigene Benachrichtigungen), je 5 Einträge, mit Leer-Zustand — Code-Review (`DashboardActivityList`, `loadInternalActivityPreview`)
+- [x] Schnellzugriffe intern (Neue Gemeinde/Neuer Kandidat/Freischaltungen mit Anzahl) — Code-Review
+- [x] Schnellzugriff Gemeinde (Neue Anfrage) — Code-Review
+- [x] Schnellzugriffe Kandidat (Profil/Dokumente) — Code-Review, s. **BUG-19-1**
+- [x] Status-Diagramm intern (alle Einsätze) und Gemeinde (nur eigene, via RLS), mit Leer-Zustand — Code-Review (`loadAssignmentStatusDistribution`, RLS-Analyse bestätigt korrekte automatische Skalierung ohne expliziten Filter)
+- [x] Kein Diagramm bei Kandidat — Code-Review (Widget-Liste enthält `chart` nicht)
+- [x] Widgets einzeln ein-/ausblendbar, Einstellung bleibt über Logins hinweg erhalten, „Widgets anpassen" bleibt immer sichtbar, Standard = alles sichtbar — Vitest + Code-Review
+- [x] Partnerfirmen-Platzhalterseite für aktive `partner_company`-Profile, Status-Weiterleitung für pending/rejected unverändert — Code-Review
+
+### Security Audit Results
+- [x] `updateHiddenDashboardWidgets` prüft Authentifizierung, aktualisiert ausschliesslich das eigene Profil (`eq("id", profile.id)`) — kein Cross-User-Zugriff möglich
+- [x] Keine neue RLS-Policy nötig, bestehende Selbst-Update-Policy deckt die neue Spalte bereits ab; verifiziert, dass sie nicht in den bestehenden `WITH CHECK`-Einschränkungen (Rolle/Status/Zuordnung) auftaucht
+- [x] `loadAssignmentStatusDistribution` verlässt sich korrekt auf RLS statt auf einen selbst gebauten Gemeinde-Filter — deckt sich mit dem bereits etablierten Muster der bestehenden Kennzahlen-Kacheln, kein Risiko einer fehlerhaften eigenen Scoping-Logik
+- [x] `/partner`-Zweig verwendet dasselbe Rollen-/Status-Prüfungsmuster wie die drei bestehenden Portale, keine neue Angriffsfläche
+- [x] Keine neuen Secrets/sensiblen Daten in Client-Code oder API-Antworten
+
+### Bugs Found
+
+| ID | Severity | Beschreibung | Repro |
+|----|----------|----|----|
+| BUG-19-1 | Medium | Die beiden Kandidaten-Schnellzugriffe „Profil bearbeiten" und „Dokumente verwalten" führen beide auf exakt dieselbe URL (`/candidate/profile`) ohne Sprungmarke zum Dokumente-Abschnitt — obwohl die Spec für den zweiten Link explizit „→ `/candidate/profile`, Dokumente-Bereich" vorsah. Kein Fehlverhalten (beide Links funktionieren, der Dokumente-Bereich ist auf derselben Seite weiter unten sichtbar), aber die beiden Buttons unterscheiden sich aktuell in nichts. | `src/app/candidate/dashboard/page.tsx` — beide `QuickAction`-Einträge haben identisches `href`, keine Anker-ID auf der Zielseite vorhanden |
+| BUG-19-2 | Low | `StatusDistributionChart` kombiniert die shadcn-`ChartContainer`-Basisklasse `aspect-video` mit einer zusätzlichen `max-h-64`-Beschränkung über die übergebene `className`. Je nach tatsächlicher Container-Breite könnte das Diagramm dadurch flacher/breiter wirken als beabsichtigt — ohne Browser-Test in dieser Umgebung nicht abschliessend verifizierbar, rein visuell, keine funktionale Auswirkung. | `src/components/portal/status-distribution-chart.tsx:29` |
+
+**Kritische/Hohe Bugs: 0**
+**Medium: 1, Low: 1** — gemäss Nutzervorgabe notiert und zurückgestellt, keine Fixes in dieser Runde.
+
+### Production-Ready Decision
+**READY: YES** — keine Critical/High-Bugs. Status auf **Approved** gesetzt.
 
 ## Deployment
 _To be added by /deploy_
