@@ -6,12 +6,19 @@ import { Badge } from "@/components/ui/badge"
 import { assignmentStatusLabel } from "@/components/portal/assignments-table"
 import { AssignmentStatusActions } from "@/components/portal/assignment-status-actions"
 import { ContractCard } from "@/components/portal/contract-card"
+import { ContractSignaturesPanel } from "@/components/portal/contract-signatures-panel"
 import { MessageThread } from "@/components/portal/message-thread"
 import { InternalNotesPanel } from "@/components/portal/internal-notes-panel"
 import { loadMessageThread } from "@/lib/messages/loadThread"
 import { loadInternalNotes } from "@/lib/notes/loadNotes"
+import { loadContractSignatures } from "@/lib/contracts/loadSignatures"
 import { sendInternalMessage } from "@/app/internal/messages/actions"
 import { addInternalNote, deleteInternalNote } from "@/app/internal/notes/actions"
+import {
+  signContractAsDafinex,
+  uploadCandidateSignatureFallback,
+} from "@/app/internal/contracts/actions"
+import { getCurrentProfile } from "@/lib/auth/get-current-profile"
 
 export const metadata: Metadata = { title: "Einsatz — Dafinex" }
 
@@ -26,7 +33,7 @@ export default async function InternalAssignmentDetailPage({
   const { data: assignment } = await supabase
     .from("assignments")
     .select(
-      "id, status, start_date, end_date, proposal:candidate_proposals(candidate:candidates(first_name, last_name), request:personnel_requests(title, municipality:municipalities(name)))",
+      "id, status, start_date, end_date, proposal:candidate_proposals(candidate:candidates(first_name, last_name, profile_id), request:personnel_requests(title, municipality:municipalities(name)))",
     )
     .eq("id", id)
     .single()
@@ -63,9 +70,12 @@ export default async function InternalAssignmentDetailPage({
     signedDownloadUrl = signed?.signedUrl ?? null
   }
 
-  const [thread, notes] = await Promise.all([
+  const profile = await getCurrentProfile()
+
+  const [thread, notes, signatures] = await Promise.all([
     loadMessageThread({ messageType: "assignment", assignmentId: id }, true),
     loadInternalNotes("assignment", id),
+    contract ? loadContractSignatures(contract.id) : Promise.resolve(null),
   ])
 
   return (
@@ -108,6 +118,21 @@ export default async function InternalAssignmentDetailPage({
         generatedDownloadUrl={generatedDownloadUrl}
         signedDownloadUrl={signedDownloadUrl}
       />
+
+      {contract && signatures && (
+        <ContractSignaturesPanel
+          assignmentId={assignment.id}
+          signatures={signatures}
+          viewerParty="dafinex"
+          isInternalViewer={true}
+          candidateHasAccount={!!candidate?.profile_id}
+          defaultSignerName={profile?.fullName ?? profile?.email ?? ""}
+          onSignDigital={(input) => signContractAsDafinex(contract.id, input)}
+          onUploadCandidateFallback={(filePath) =>
+            uploadCandidateSignatureFallback(contract.id, filePath)
+          }
+        />
+      )}
 
       <MessageThread
         messages={thread.messages}

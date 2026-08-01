@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { createContract, setSignedDocument } from "@/app/internal/contracts/actions"
+import { createContract } from "@/app/internal/contracts/actions"
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB
 const ALLOWED_FILE_TYPES = ["application/pdf", "image/jpeg", "image/png"]
@@ -37,7 +37,7 @@ export function ContractCard({
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
 
-  async function uploadFile(file: File, kind: "generated" | "signed") {
+  async function uploadFile(file: File) {
     if (!ALLOWED_FILE_TYPES.includes(file.type)) {
       setError("Nur PDF, JPG oder PNG erlaubt.")
       return
@@ -50,7 +50,7 @@ export function ContractCard({
     setError(null)
     setUploading(true)
     const supabase = createClient()
-    const path = `${assignmentId}/${kind}-${file.name}`
+    const path = `${assignmentId}/generated-${file.name}`
 
     const { error: uploadError } = await supabase.storage
       .from("contracts")
@@ -62,10 +62,7 @@ export function ContractCard({
       return
     }
 
-    const result =
-      kind === "generated"
-        ? await createContract(assignmentId, path)
-        : await setSignedDocument(contract!.id, path)
+    const result = await createContract(assignmentId, path)
 
     setUploading(false)
 
@@ -77,13 +74,11 @@ export function ContractCard({
     router.refresh()
   }
 
-  function handleFileChange(kind: "generated" | "signed") {
-    return (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
-      e.target.value = ""
-      if (!file) return
-      uploadFile(file, kind)
-    }
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+    uploadFile(file)
   }
 
   return (
@@ -101,8 +96,8 @@ export function ContractCard({
         {!contract ? (
           assignmentStatus === "proposed" ? (
             <p className="text-sm text-muted-foreground">
-              Der Einsatz muss zuerst mindestens den Status „Akzeptiert" erreichen, bevor ein
-              Vertrag angelegt werden kann.
+              Der Einsatz muss zuerst mindestens den Status Akzeptiert erreichen, bevor ein Vertrag
+              angelegt werden kann.
             </p>
           ) : (
             <div>
@@ -110,7 +105,7 @@ export function ContractCard({
               <Input
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png"
-                onChange={handleFileChange("generated")}
+                onChange={handleFileChange}
                 disabled={uploading}
               />
               <p className="mt-1 text-xs text-muted-foreground">
@@ -135,19 +130,6 @@ export function ContractCard({
                   Generiertes Dokument herunterladen
                 </a>
               </p>
-            )}
-            {contract.status === "generated" && (
-              <div>
-                <Input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={handleFileChange("signed")}
-                  disabled={uploading}
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Unterschriebene Version hochladen (PDF, JPG oder PNG, max. 10 MB).
-                </p>
-              </div>
             )}
             {signedDownloadUrl && (
               <p className="text-sm">

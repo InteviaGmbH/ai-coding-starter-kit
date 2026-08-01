@@ -5,9 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { assignmentStatusLabel } from "@/components/portal/assignments-table"
 import { MunicipalityContractCard } from "@/components/portal/municipality-contract-card"
+import { ContractSignaturesPanel } from "@/components/portal/contract-signatures-panel"
 import { MessageThread } from "@/components/portal/message-thread"
 import { loadMessageThread } from "@/lib/messages/loadThread"
+import { loadContractSignatures } from "@/lib/contracts/loadSignatures"
 import { sendCandidateAssignmentMessage } from "@/app/candidate/messages/actions"
+import { signContractAsCandidate } from "@/app/candidate/contracts/actions"
+import { getCurrentProfile } from "@/lib/auth/get-current-profile"
 
 export const metadata: Metadata = { title: "Einsatz — Dafinex" }
 
@@ -57,7 +61,7 @@ export default async function CandidateAssignmentDetailPage({
 
   const { data: contract, error: contractError } = await supabase
     .from("contracts")
-    .select("status, generated_document_path, signed_document_path")
+    .select("id, status, generated_document_path, signed_document_path")
     .eq("assignment_id", id)
     .maybeSingle()
 
@@ -65,7 +69,12 @@ export default async function CandidateAssignmentDetailPage({
     console.error("Vertrag konnte nicht geladen werden:", contractError)
   }
 
-  const thread = await loadMessageThread({ messageType: "assignment", assignmentId: id }, false)
+  const profile = await getCurrentProfile()
+
+  const [thread, signatures] = await Promise.all([
+    loadMessageThread({ messageType: "assignment", assignmentId: id }, false),
+    contract ? loadContractSignatures(contract.id) : Promise.resolve(null),
+  ])
 
   let generatedDownloadUrl: string | null = null
   let signedDownloadUrl: string | null = null
@@ -113,6 +122,18 @@ export default async function CandidateAssignmentDetailPage({
         generatedDownloadUrl={generatedDownloadUrl}
         signedDownloadUrl={signedDownloadUrl}
       />
+
+      {contract && signatures && (
+        <ContractSignaturesPanel
+          assignmentId={id}
+          signatures={signatures}
+          viewerParty="candidate"
+          isInternalViewer={false}
+          candidateHasAccount={true}
+          defaultSignerName={profile?.fullName ?? profile?.email ?? ""}
+          onSignDigital={(input) => signContractAsCandidate(contract.id, input)}
+        />
+      )}
 
       <MessageThread
         messages={thread.messages}

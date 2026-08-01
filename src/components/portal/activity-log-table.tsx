@@ -36,6 +36,11 @@ const ACTIVITY_DESCRIPTIONS: Record<string, Record<string, string>> = {
     generated: "Vertrag generiert",
     signed: "Vertrag unterschrieben",
   },
+  contract_signature: {
+    signed_dafinex: "Vertrag von Dafinex unterschrieben",
+    signed_municipality: "Vertrag von Gemeinde unterschrieben",
+    signed_candidate: "Vertrag von Kandidat unterschrieben",
+  },
   candidate_note: {
     note_added: "Interne Notiz zu Kandidat hinzugefügt",
     note_deleted: "Interne Notiz zu Kandidat gelöscht",

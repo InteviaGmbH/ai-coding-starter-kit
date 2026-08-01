@@ -21,6 +21,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   assignment_ending_soon: "Einsatzende bald",
   contract_signature_pending: "Unterschrift ausstehend",
   proposal_decision_pending: "Vorschlag ohne Entscheidung",
+  contract_party_signed: "Vertrag teilweise unterschrieben",
 }
 
 export function notificationTypeLabel(type: string): string {

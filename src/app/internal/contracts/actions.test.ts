@@ -165,84 +165,182 @@ describe("createContract", () => {
   })
 })
 
-describe("setSignedDocument", () => {
+// PROJ-15: signContractAsDafinex / uploadCandidateSignatureFallback replace
+// the old setSignedDocument (whole-contract upload). These need a richer
+// mock covering the signing-context lookup (contracts -> assignments ->
+// candidate_proposals -> personnel_requests/candidates) plus the new
+// contract_signatures table.
+
+const SIGNING_CONTEXT_CONTRACT = {
+  id: CONTRACT_ID,
+  assignment_id: ASSIGNMENT_ID,
+  assignment: {
+    proposal: {
+      request: { title: "Sozialarbeiter:in", created_by_id: MUNICIPALITY_USER_ID },
+      candidate: { profile_id: CANDIDATE_USER_ID },
+    },
+  },
+}
+
+function mockSigningClient(opts?: {
+  contract?: typeof SIGNING_CONTEXT_CONTRACT | null
+  signatureInsertError?: { code?: string; message: string } | null
+  signatureCount?: number
+}) {
+  const contract = opts?.contract === undefined ? SIGNING_CONTEXT_CONTRACT : opts.contract
+  const signatureInsertError = opts?.signatureInsertError ?? null
+  const signatureCount = opts?.signatureCount ?? 1
+
+  const signatureInsert = vi.fn(async () => ({ error: signatureInsertError }))
+  const activityLogInsert = vi.fn(async () => ({ error: null }))
+  const notificationsInsert = vi.fn(async () => ({ error: null }))
+
+  const contracts = {
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: contract, error: null })) })),
+    })),
+  }
+
+  const contractSignatures = {
+    insert: signatureInsert,
+    select: vi.fn(() => ({
+      eq: vi.fn(async () => ({ count: signatureCount, error: null })),
+    })),
+  }
+
+  const client = {
+    from: vi.fn((table: string) => {
+      if (table === "contracts") return contracts
+      if (table === "contract_signatures") return contractSignatures
+      if (table === "activity_log") return { insert: activityLogInsert }
+      if (table === "notifications") return { insert: notificationsInsert }
+      throw new Error(`unexpected table: ${table}`)
+    }),
+  }
+
+  return { client, signatureInsert, activityLogInsert, notificationsInsert }
+}
+
+async function importSigningActions(client: unknown, profile: unknown = activeAdminProfile) {
+  vi.doMock("@/lib/auth/get-current-profile", () => ({
+    getCurrentProfile: async () => profile,
+    INTERNAL_ROLES: ["super_admin", "dafinex_admin", "internal_coordinator"],
+  }))
+  vi.doMock("@/lib/supabase/server", () => ({ createClient: async () => client }))
+  vi.doMock("next/headers", () => ({
+    headers: async () => new Map([["user-agent", "vitest"]]),
+  }))
+  vi.doMock("@/lib/notifications/get-active-internal-profile-ids", () => ({
+    getActiveInternalProfileIds: async () => [],
+  }))
+  return import("./actions")
+}
+
+describe("signContractAsDafinex", () => {
   beforeEach(() => {
     vi.resetModules()
   })
 
   it("rejects when the caller is not an active internal role", async () => {
-    const client = mockSupabaseClient()
-    const { setSignedDocument } = await importActions(client, { ...activeAdminProfile, role: "candidate" })
+    const { client } = mockSigningClient()
+    const { signContractAsDafinex } = await importSigningActions(client, {
+      ...activeAdminProfile,
+      role: "candidate",
+    })
 
-    const result = await setSignedDocument(CONTRACT_ID, "path/signed.pdf")
+    const result = await signContractAsDafinex(CONTRACT_ID, { signerName: "Max Muster", agreed: true })
     expect(result).toEqual({ success: false, error: "Keine Berechtigung." })
   })
 
-  it("sets the signed document and flips status to 'signed'", async () => {
-    const client = mockSupabaseClient()
-    const { setSignedDocument } = await importActions(client)
+  it("rejects an empty signer name", async () => {
+    const { client } = mockSigningClient()
+    const { signContractAsDafinex } = await importSigningActions(client)
 
-    const result = await setSignedDocument(CONTRACT_ID, "path/signed.pdf")
-    expect(result).toEqual({ success: true })
-    expect(client.from("contracts").update).toHaveBeenCalledWith({
-      signed_document_path: "path/signed.pdf",
-      status: "signed",
-    })
-  })
-
-  it("rejects setting a signed document when one already exists", async () => {
-    const client = mockSupabaseClient({
-      contract: { id: CONTRACT_ID, status: "signed", assignment_id: ASSIGNMENT_ID },
-    })
-    const { setSignedDocument } = await importActions(client)
-
-    const result = await setSignedDocument(CONTRACT_ID, "path/signed-2.pdf")
+    const result = await signContractAsDafinex(CONTRACT_ID, { signerName: "   ", agreed: true })
     expect(result.success).toBe(false)
-    expect(result.error).toMatch(/bereits eine unterschriebene/)
   })
 
-  it("notifies both the municipality and the candidate", async () => {
-    const client = mockSupabaseClient({
-      contract: {
-        id: CONTRACT_ID,
-        status: "generated",
-        assignment_id: ASSIGNMENT_ID,
-        assignment: {
-          proposal: {
-            request: { title: "Sozialarbeiter:in", created_by_id: MUNICIPALITY_USER_ID },
-            candidate: { profile_id: CANDIDATE_USER_ID },
-          },
-        },
-      },
-    })
-    const { setSignedDocument } = await importActions(client)
+  it("stores a digital signature with server-captured metadata", async () => {
+    const { client, signatureInsert } = mockSigningClient()
+    const { signContractAsDafinex } = await importSigningActions(client)
 
-    await setSignedDocument(CONTRACT_ID, "path/signed.pdf")
-    expect(client.from("notifications").insert).toHaveBeenCalledWith([
+    const result = await signContractAsDafinex(CONTRACT_ID, { signerName: "Max Muster", agreed: true })
+    expect(result).toEqual({ success: true })
+    expect(signatureInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contract_id: CONTRACT_ID,
+        party_type: "dafinex",
+        method: "digital",
+        signer_name: "Max Muster",
+        user_agent: "vitest",
+      })
+    )
+  })
+
+  it("returns a friendly error when this party already signed", async () => {
+    const { client } = mockSigningClient({
+      signatureInsertError: { code: "23505", message: "duplicate key" },
+    })
+    const { signContractAsDafinex } = await importSigningActions(client)
+
+    const result = await signContractAsDafinex(CONTRACT_ID, { signerName: "Max Muster", agreed: true })
+    expect(result).toEqual({ success: false, error: "Sie haben bereits unterschrieben." })
+  })
+
+  it("sends the completion notification once all three parties have signed", async () => {
+    const { client, notificationsInsert } = mockSigningClient({ signatureCount: 3 })
+    const { signContractAsDafinex } = await importSigningActions(client)
+
+    await signContractAsDafinex(CONTRACT_ID, { signerName: "Max Muster", agreed: true })
+    expect(notificationsInsert).toHaveBeenCalledWith([
       expect.objectContaining({ recipient_id: MUNICIPALITY_USER_ID, type: "contract_signed" }),
       expect.objectContaining({ recipient_id: CANDIDATE_USER_ID, type: "contract_signed" }),
     ])
   })
+})
 
-  it("skips the candidate recipient when the candidate has no portal account", async () => {
-    const client = mockSupabaseClient({
-      contract: {
-        id: CONTRACT_ID,
-        status: "generated",
-        assignment_id: ASSIGNMENT_ID,
-        assignment: {
-          proposal: {
-            request: { title: "Sozialarbeiter:in", created_by_id: MUNICIPALITY_USER_ID },
-            candidate: { profile_id: null },
-          },
-        },
-      },
+describe("uploadCandidateSignatureFallback", () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it("rejects when the caller is not an active internal role", async () => {
+    const { client } = mockSigningClient()
+    const { uploadCandidateSignatureFallback } = await importSigningActions(client, {
+      ...activeAdminProfile,
+      role: "municipality",
     })
-    const { setSignedDocument } = await importActions(client)
 
-    await setSignedDocument(CONTRACT_ID, "path/signed.pdf")
-    expect(client.from("notifications").insert).toHaveBeenCalledWith([
-      expect.objectContaining({ recipient_id: MUNICIPALITY_USER_ID, type: "contract_signed" }),
-    ])
+    const result = await uploadCandidateSignatureFallback(CONTRACT_ID, `${ASSIGNMENT_ID}/signed.pdf`)
+    expect(result).toEqual({ success: false, error: "Keine Berechtigung." })
+  })
+
+  it("stores the uploaded file as the candidate's signature", async () => {
+    const { client, signatureInsert } = mockSigningClient()
+    const { uploadCandidateSignatureFallback } = await importSigningActions(client)
+
+    const result = await uploadCandidateSignatureFallback(CONTRACT_ID, `${ASSIGNMENT_ID}/signed.pdf`)
+    expect(result).toEqual({ success: true })
+    expect(signatureInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contract_id: CONTRACT_ID,
+        party_type: "candidate",
+        method: "upload",
+        file_path: `${ASSIGNMENT_ID}/signed.pdf`,
+      })
+    )
+  })
+
+  it("returns a friendly error when the candidate already has a signature on file", async () => {
+    const { client } = mockSigningClient({
+      signatureInsertError: { code: "23505", message: "duplicate key" },
+    })
+    const { uploadCandidateSignatureFallback } = await importSigningActions(client)
+
+    const result = await uploadCandidateSignatureFallback(CONTRACT_ID, `${ASSIGNMENT_ID}/signed.pdf`)
+    expect(result).toEqual({
+      success: false,
+      error: "Für diesen Kandidaten wurde bereits eine Unterschrift hinterlegt.",
+    })
   })
 })

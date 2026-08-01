@@ -1,8 +1,8 @@
 # PROJ-15: Digitale Multi-Party-Signaturen mit Protokollierung
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-08-01
-**Last Updated:** 2026-08-01 (Tech Design ergänzt — siehe Abschnitt "Tech Design (Solution Architect)")
+**Last Updated:** 2026-08-01 (Implementation abgeschlossen — siehe Abschnitt "Implementation Notes")
 
 ## Dependencies
 - Requires: PROJ-10 (Einfache Vertragsgenerierung) — bestehendes Vertragsmodell (`contracts`: generated/signed), das um digitale Mehrparteien-Unterschriften erweitert wird
@@ -151,6 +151,28 @@ Gespeichert in: bestehende Supabase-Datenbank (eine neue, mit dem Vertrag verkn�
 
 ### D) Dependencies (packages to install)
 - Keine neuen Pakete.
+
+## Implementation Notes
+
+### Datenbank
+- Migration `20260801100000_contract_signatures.sql`: neue Tabelle `contract_signatures` (contract_id, party_type, method, signer-Angaben bzw. Datei-Pfad, IP/Browser). Unique-Index auf `(contract_id, party_type)` erzwingt genau eine Unterschrift pro Partei; keine UPDATE/DELETE-Policy existiert, damit Unterschriften unter keinen Umständen nachträglich veränderbar sind.
+- Trigger `check_contract_fully_signed` (SECURITY DEFINER) setzt `contracts.status = 'signed'`, sobald für alle drei Parteien eine Zeile existiert — läuft mit erhöhten Rechten, da eine Gemeinde/ein Kandidat, die ihre eigene Zeile einfügen, kein UPDATE-Recht auf `contracts` haben.
+- RLS auf `contract_signatures` spiegelt exakt die bestehende Sichtbarkeits-Kette aus `contracts_select`; INSERT ist strikt pro Rolle auf den jeweils eigenen `party_type` beschränkt (Gemeinde nur `municipality`, Kandidat nur `candidate` und nur `method='digital'`, intern `dafinex` und `candidate` per Fallback-Upload).
+- **Doppel-Klick-Schutz (Nutzeranfrage aus der Architektur-Freigabe):** Der Unique-Index sorgt dafür, dass ein zweiter Unterschriftsversuch derselben Partei serverseitig immer mit einem `23505`-Fehler (Unique-Constraint-Verstoss) abgelehnt wird. Alle drei Signier-Aktionen fangen diesen Fehlercode gezielt ab und liefern statt der rohen Datenbank-Fehlermeldung „Sie haben bereits unterschrieben." zurück. Zusätzlich deaktiviert sich der „Digital unterschreiben"-Button clientseitig sofort nach dem ersten Klick (`disabled={submitting}`), wodurch ein echter Doppelklick in der Praxis meist gar nicht erst zwei Anfragen auslöst.
+- Der bestehende, alte Weg (`setSignedDocument`, ein einzelner Upload direkt auf `contracts.status = 'signed'`) wurde entfernt, um zwei parallele, widersprüchliche Wege zu „signed" zu vermeiden — `contracts.signed_document_path` bleibt als ungenutzte Altlast bestehen (Backward-Anzeige für bereits vor dieser Migration signierte Verträge).
+
+### Anwendungscode
+- `src/lib/contracts/`: `schema.ts` (Zod), `get-request-metadata.ts` (serverseitige IP/Browser-Erfassung über `next/headers`, nie vom Client übernommen), `load-signing-context.ts` (gemeinsamer, RLS-scoped Kontext-Loader), `sign-digital.ts` (gemeinsamer Kern für alle drei digitalen Signier-Wege + den Datei-Upload-Fallback), `notify-signature-parties.ts`, `loadSignatures.ts` (lädt alle drei Partei-Zeilen inkl. signierter Download-URLs für Uploads).
+- Drei dünne, rollenspezifische Server Actions: `internal/contracts/actions.ts` (`signContractAsDafinex`, `uploadCandidateSignatureFallback`), `municipality/contracts/actions.ts` (`signContractAsMunicipality`, neu), `candidate/contracts/actions.ts` (`signContractAsCandidate`, neu) — jede macht nur ihre eigene Auth-/Eigentums-Prüfung und delegiert danach an den gemeinsamen Kern.
+- Neue Komponente `contract-signatures-panel.tsx`: zeigt alle drei Parteien, mit Signier-Formular für die eigene Partei, Datei-Upload für den internen Kandidaten-Fallback, und einer schreibgeschützten Übersicht für die jeweils anderen Parteien.
+- `contract-card.tsx` (intern) bereinigt: der alte „Unterschriebene Version hochladen"-Upload ist entfernt (ersetzt durch das neue Panel); der generierte-Dokument-Upload bleibt unverändert.
+- Neuer Benachrichtigungstyp `contract_party_signed` ergänzt; `contract_signed` wird jetzt beim vollständigen Abschluss aller drei Parteien ausgelöst statt beim alten Einzel-Upload.
+- Alle drei Einsatz-Detailseiten (`internal`/`municipality`/`candidate`) laden jetzt zusätzlich die Unterschriften und binden das neue Panel ein.
+
+### Verifikation
+- `npx eslint` (alle neuen/geänderten Dateien): keine Fehler (inkl. einer beiläufig behobenen, vorbestehenden Anführungszeichen-Warnung in `contract-card.tsx`)
+- `npx vitest run`: 164/164 Tests grün (12 neu: Berechtigungsprüfung je Rolle, erfolgreiche digitale Unterschrift mit serverseitigen Metadaten, Datei-Upload-Fallback, sowie gezielt der vom Nutzer angefragte Doppel-Unterschrift-Fall — `23505` wird korrekt in „Sie haben bereits unterschrieben." übersetzt)
+- `npm run build`: erfolgreich, alle Routen kompilieren
 
 ## QA Test Results
 _To be added by /qa_

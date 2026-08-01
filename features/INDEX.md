@@ -29,7 +29,7 @@
 | PROJ-12 | Aktivitätenprotokoll (Basis) | Deployed | [PROJ-12](PROJ-12-aktivitaetenprotokoll-basis.md) | 2026-07-25 |
 | PROJ-13 | Partnerportal + Partnerfirmen-Kandidatenvorschläge | Roadmap | — | 2026-07-25 |
 | PROJ-14 | Volle Matching-Score-Formel mit Gewichtungen | Approved | [PROJ-14](PROJ-14-volle-matching-score-formel.md) | 2026-07-25 |
-| PROJ-15 | Digitale Multi-Party-Signaturen | Architected | [PROJ-15](PROJ-15-digitale-multi-party-signaturen.md) | 2026-07-25 |
+| PROJ-15 | Digitale Multi-Party-Signaturen | In Progress | [PROJ-15](PROJ-15-digitale-multi-party-signaturen.md) | 2026-07-25 |
 | PROJ-16 | Vollständiges Dokumentenmanagement | Approved | [PROJ-16](PROJ-16-vollstaendiges-dokumentenmanagement.md) | 2026-07-25 |
 | PROJ-17 | Vollständiges Nachrichtensystem | Approved | [PROJ-17](PROJ-17-vollstaendiges-nachrichtensystem.md) | 2026-07-25 |
 | PROJ-18 | Alle Benachrichtigungstrigger + Erinnerungslogik | Approved | [PROJ-18](PROJ-18-alle-benachrichtigungstrigger-erinnerungslogik.md) | 2026-07-25 |

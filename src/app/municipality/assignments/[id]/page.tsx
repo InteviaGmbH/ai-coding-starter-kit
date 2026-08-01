@@ -5,6 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { assignmentStatusLabel } from "@/components/portal/assignments-table"
 import { MunicipalityContractCard } from "@/components/portal/municipality-contract-card"
+import { ContractSignaturesPanel } from "@/components/portal/contract-signatures-panel"
+import { loadContractSignatures } from "@/lib/contracts/loadSignatures"
+import { signContractAsMunicipality } from "@/app/municipality/contracts/actions"
+import { getCurrentProfile } from "@/lib/auth/get-current-profile"
 
 export const metadata: Metadata = { title: "Einsatz — Dafinex" }
 
@@ -36,9 +40,12 @@ export default async function MunicipalityAssignmentDetailPage({
 
   const { data: contract } = await supabase
     .from("contracts")
-    .select("status, generated_document_path, signed_document_path")
+    .select("id, status, generated_document_path, signed_document_path")
     .eq("assignment_id", id)
     .maybeSingle()
+
+  const profile = await getCurrentProfile()
+  const signatures = contract ? await loadContractSignatures(contract.id) : null
 
   let generatedDownloadUrl: string | null = null
   let signedDownloadUrl: string | null = null
@@ -87,6 +94,18 @@ export default async function MunicipalityAssignmentDetailPage({
         generatedDownloadUrl={generatedDownloadUrl}
         signedDownloadUrl={signedDownloadUrl}
       />
+
+      {contract && signatures && (
+        <ContractSignaturesPanel
+          assignmentId={id}
+          signatures={signatures}
+          viewerParty="municipality"
+          isInternalViewer={false}
+          candidateHasAccount={false}
+          defaultSignerName={profile?.fullName ?? profile?.email ?? ""}
+          onSignDigital={(input) => signContractAsMunicipality(contract.id, input)}
+        />
+      )}
     </div>
   )
 }
