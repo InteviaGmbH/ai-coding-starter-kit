@@ -1,8 +1,8 @@
 # PROJ-19: Vollständige Dashboards für alle Rollen
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-07-31
-**Last Updated:** 2026-07-31
+**Last Updated:** 2026-07-31 (Tech Design ergänzt — siehe Abschnitt "Tech Design (Solution Architect)")
 
 ## Dependencies
 - Requires: PROJ-2 (Auth & Portal-Grundgerüst) — Portal-Shell, Rollenprüfung
@@ -104,12 +104,63 @@ _Keine offenen Fragen._
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Neue Spalte `profiles.hidden_dashboard_widgets` (Text-Array, Default leer) statt einer eigenen Präferenz-Tabelle | Deckt "welche Widgets sind ausgeblendet" vollständig ab; additive Spalte auf einer bereits bestehenden, für jede Rolle zugänglichen Tabelle, gleiches Muster wie `personnel_requests.required_workload_percent` (PROJ-14) | 2026-07-31 |
+| Widget-Sichtbarkeits-Update über eine einfache, selbst-scoped Server Action (`update({hidden_dashboard_widgets: [...]}).eq("id", auth.uid())`), keine neue RLS-Policy nötig | Die bestehende `profiles_update_own_limited`-Policy erlaubt bereits Selbst-Updates; die neue Spalte ist kein sicherheitsrelevantes Feld (Rolle/Status/Zuordnung bleiben durch die bestehende `WITH CHECK`-Klausel weiterhin geschützt) | 2026-07-31 |
+| shadcn/ui Chart-Komponente (Recharts-Wrapper) statt einer rohen Recharts-Einbindung oder einer alternativen Bibliothek (z.B. Chart.js) | Konsistent mit dem "shadcn zuerst"-Grundsatz, einheitliches Look-and-Feel mit dem Rest der UI (Theming über CSS-Variablen) | 2026-07-31 |
+| Status-Diagramm-Daten werden serverseitig beim Laden der Seite aggregiert (Anzahl je Status, eine kleine Datenbankabfrage), nicht clientseitig aus einer vollständigen Einsatzliste berechnet | Vermeidet unnötige Übertragung aller Einsatz-Datensätze nur für eine Zählung; passt zum bestehenden Muster von Kennzahlen-Kacheln, die ebenfalls serverseitig gezählt werden | 2026-07-31 |
+| Partnerfirmen-Route (`/partner/dashboard`) folgt demselben Layout-/Rollenprüfungs-Muster wie die drei bestehenden Portale (eigenes `layout.tsx`, `getPortalPathForProfile` um einen `partner_company`-Zweig ergänzt) | Konsistenz mit dem etablierten Portal-Aufbau; verhindert, dass ein `partner_company`-Profil ins Leere (`/login`) läuft, falls die Rolle doch vorzeitig gesetzt wird | 2026-07-31 |
+
+
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### A) Component Structure
+
+```
+Dashboard (intern / Gemeinde / Kandidat — dieselbe Grundstruktur, je nach
+Rolle unterschiedliche Widgets)
+├── "Widgets anpassen" (neu, immer sichtbar)
+│     └── Kleines Auswahlmenü mit einem Schalter pro Widget dieser Rolle
+├── Kennzahlen-Kacheln (bestehend, jetzt ausblendbar)
+├── Aktivitäts-Vorschau (neu, ausblendbar)
+│     ├── Intern: letzte 5 Einträge aus dem bestehenden Aktivitätenprotokoll
+│     ├── Gemeinde/Kandidat: letzte 5 eigene Benachrichtigungen
+│     └── Leerer Zustand ("Noch keine Aktivität")
+├── Status-Diagramm (neu, nur intern + Gemeinde, ausblendbar)
+│     ├── Intern: alle Einsätze nach Status
+│     ├── Gemeinde: nur eigene Einsätze nach Status
+│     └── Leerer Zustand, falls keine Einsätze vorhanden
+└── Schnellzugriffe (neu, ausblendbar)
+      ├── Intern: Neue Gemeinde / Neuer Kandidat / Freischaltungen (mit Anzahl)
+      ├── Gemeinde: Neue Anfrage erstellen
+      └── Kandidat: Profil bearbeiten / Dokumente verwalten
+
+Partnerfirmen-Platzhalterseite (neuer, minimaler Portal-Zweig)
+└── Eigene Seite mit "Kommt bald"-Hinweistext, kein Widget, keine Daten
+```
+
+### B) Data Model (plain language)
+
+Keine neue Tabelle nötig — alle Inhalte (Kennzahlen, Aktivität, Status-Diagramm) werden aus bereits vorhandenen Daten (Aktivitätenprotokoll, Benachrichtigungen, Einsätze) zusammengestellt.
+
+Eine kleine Ergänzung am bestehenden Profil ist nötig, um die Widget-Sichtbarkeit zu merken:
+
+**Jedes Profil** bekommt zusätzlich:
+- Liste der vom Nutzer ausgeblendeten Widget-Namen (leer, solange nichts ausgeblendet wurde)
+
+### C) Tech Decisions (justified for PM)
+
+1. **Diagramm-Bibliothek: Recharts über die bereits im Projekt genutzte shadcn/ui-Komponentenbibliothek.** shadcn/ui bietet eine fertige Chart-Komponente auf Basis von Recharts — passt zum bestehenden "shadcn zuerst"-Grundsatz des Projekts, kein neues, fremdes UI-System nötig.
+2. **Widget-Sichtbarkeit als einfache Liste auf dem bestehenden Profil, statt einer eigenen Einstellungs-Tabelle.** Eine einzelne zusätzliche Spalte reicht für "welche Widgets sind ausgeblendet" vollständig aus — kleinstmögliche Erweiterung, gleiches Muster wie bereits mehrfach im Projekt verwendet (z.B. Pensum-Feld aus PROJ-14).
+3. **Status-Diagramm ist eine Momentaufnahme, keine Zeitreihen-Auswertung.** Wird direkt aus den bereits vorhandenen Status-Werten der Einsätze berechnet, kein zusätzlicher Aggregations-/Speicherbedarf.
+4. **Partnerfirmen-Seite als eigener, minimaler Portal-Zweig statt eines vollen Dashboards.** Reine Platzhalter-Seite ohne Datenanbindung — verhindert einen Fehler/eine falsche Weiterleitung, falls die Rolle vorzeitig vergeben wird, ohne den viel grösseren Aufwand eines echten Partner-Datenmodells vorwegzunehmen (das bleibt PROJ-13 vorbehalten).
+5. **Aktivitäts-Vorschau und Schnellzugriffe nutzen ausschliesslich bereits bestehende Datenquellen/Seiten** (Aktivitätenprotokoll, Benachrichtigungen, bestehende Erstell-Dialoge) — kein neuer Schreibpfad, nur zusätzliche Lesezugriffe beim Laden der Seite.
+
+### D) Dependencies (packages to install)
+- `recharts` (+ die shadcn/ui-Chart-Komponente, die darauf aufbaut) — für die beiden Status-Diagramme
 
 ## QA Test Results
 _To be added by /qa_
