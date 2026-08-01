@@ -1,8 +1,8 @@
 # PROJ-15: Digitale Multi-Party-Signaturen mit Protokollierung
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-08-01
-**Last Updated:** 2026-08-01 (Implementation abgeschlossen — siehe Abschnitt "Implementation Notes")
+**Last Updated:** 2026-08-01 (QA durchgeführt — 1 High-Bug gefunden, wartet auf Nutzer-Freigabe vor Fix. Siehe „QA Test Results".)
 
 ## Dependencies
 - Requires: PROJ-10 (Einfache Vertragsgenerierung) — bestehendes Vertragsmodell (`contracts`: generated/signed), das um digitale Mehrparteien-Unterschriften erweitert wird
@@ -175,7 +175,58 @@ Gespeichert in: bestehende Supabase-Datenbank (eine neue, mit dem Vertrag verkn�
 - `npm run build`: erfolgreich, alle Routen kompilieren
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-08-01
+**App URL:** Kein Browser-Tool/keine funktionierenden Supabase-Zugangsdaten in dieser Umgebung — siehe Testmethode
+**Tester:** QA Engineer (AI)
+
+### Testmethode
+Wie bereits bei PROJ-14/16/17/18/19 etabliert: kein Browser-Tool und keine `.env.local` in dieser Umgebung. Abdeckung dieses Durchgangs:
+1. Vollständige Vitest-Suite (164/164) — 12 neue Tests: Berechtigungsprüfung je Rolle, erfolgreiche digitale Unterschrift mit serverseitig erfassten Metadaten, Datei-Upload-Fallback, und gezielt der vom Nutzer bei der Architektur-Freigabe angefragte Doppel-Unterschrift-Fall
+2. Gezielter Code-Audit der Migration (RLS-Policies je Partei/Rolle einzeln durchgespielt, Trigger-Logik, Unique-/Check-Constraints) und aller neuen/geänderten Anwendungsdateien
+3. Impersonations-Analyse: durchgespielt, ob eine Gemeinde `party_type='dafinex'`/`'candidate'` unterschieben kann, ob ein Kandidat `method='upload'` für sich selbst einschleusen kann, ob jemand für eine fremde Partei/einen fremden Vertrag unterschreiben kann — in jedem Fall verhindert die RLS `WITH CHECK`-Klausel die Anfrage vollständig
+4. **Migrations-/Regressionsprüfung gegen bereits live Daten** (siehe BUG-15-1) — PROJ-10 ist laut `features/INDEX.md` bereits **Deployed**, es kann also in der echten Datenbank bereits vollständig unterschriebene Verträge aus der alten Einzel-Upload-Logik geben
+5. Kein neuer E2E-Test ergänzt (gleiche Begründung wie in den vorherigen Runden: Login-Flows in dieser Umgebung nicht sinnvoll testbar)
+
+### Acceptance Criteria Status
+**14/14 Acceptance Criteria für den neuen Drei-Parteien-Signaturfluss erfüllt** — alle beziehen sich auf neu erstellte Verträge; die Lücke bei bereits vor dieser Migration abgeschlossenen Verträgen (BUG-15-1) war weder in der Spec noch in den Edge Cases abgedeckt und wurde erst in dieser QA-Runde entdeckt.
+- [x] Unterschreiben-Bereich mit Namensfeld + Zustimmungs-Checkbox pro eigener Partei — Code-Review
+- [x] Digitale Unterschrift speichert Zeitpunkt/IP/Browser serverseitig — Vitest + Code-Review (`getRequestMetadata`, nie aus Client-Eingabe übernommen)
+- [x] Bereits abgeschlossener Anteil zeigt „Unterschrieben am ... von ..." statt Formular, unveränderlich — Code-Review + DB-Unique-Index
+- [x] Validierung bei fehlendem Namen/fehlender Zustimmung — Zod (`signDigitalSchema`) + Client-Check
+- [x] Automatischer Statuswechsel auf „signed" bei drei abgeschlossenen Anteilen — Code-Review (SECURITY-DEFINER-Trigger) + Vitest (Benachrichtigungs-Verzweigung bei `count === 3`)
+- [x] Fallback-Datei-Upload für Kandidaten ohne Konto, nur für internes Personal sichtbar — Code-Review + Vitest
+- [x] Fallback-Anteil zählt unabhängig vom Fortschritt der anderen Parteien — Code-Review (Trigger zählt unabhängig von `method`)
+- [x] Nachträgliches Konto ändert nichts an einem bereits per Fallback abgeschlossenen Anteil — RLS-Analyse (Unique-Index verhindert jeden zweiten Versuch für denselben `party_type`, unabhängig vom Weg)
+- [x] Protokoll-Übersicht je Partei (Status/Name/Zeitpunkt/Methode) — Code-Review (`ContractSignaturesPanel`), s. jedoch **BUG-15-2** (Namensanzeige beim Fallback)
+- [x] Aktivitätenprotokoll-Eintrag je Unterschrift — Vitest + Code-Review (neue deutsche Beschreibungen in `activity-log-table.tsx`)
+- [x] Gemeinde kann nicht für Kandidat/Dafinex unterschreiben — RLS-Analyse (Impersonationsversuch scheitert an `WITH CHECK`)
+- [x] Kandidat kann nicht den Vertrag eines fremden Einsatzes unterschreiben — RLS-Analyse (Subquery-Scoping über `candidate_proposals`)
+- [x] Andere Parteien werden bei jeder Teil-Unterschrift benachrichtigt — Vitest + Code-Review (`notifyContractPartySigned`)
+- [x] Vollständigkeits-Benachrichtigung an Gemeinde + Kandidat — Vitest (`sendCompletion...`-Test), s. jedoch **BUG-15-3** (seltene Doppel-Benachrichtigung bei echter Gleichzeitigkeit)
+
+### Security Audit Results
+- [x] Jede Partei kann ausschliesslich ihren eigenen `party_type` einfügen — für alle drei Rollen einzeln durchgespielt, RLS `WITH CHECK` verhindert jede Fremdzuordnung zuverlässig
+- [x] `created_by_id = auth.uid()` in der `WITH CHECK`-Klausel verhindert, dass eine Partei eine Unterschrift im Namen einer anderen Person einträgt
+- [x] Unveränderlichkeit doppelt abgesichert: Unique-Index auf `(contract_id, party_type)` UND keine UPDATE/DELETE-Policy überhaupt
+- [x] IP-Adresse/Browser-Kennung werden ausschliesslich serverseitig aus den Request-Headern gelesen, nie aus Client-Eingaben übernommen
+- [x] Diese Felder werden in der Anwendung nirgends anzeige — `loadContractSignatures` fragt sie bewusst gar nicht erst ab, keine unnötige Exposition in der UI
+- [x] Storage-Fallback-Upload nutzt denselben, bereits internal-only abgesicherten `contracts`-Bucket aus PROJ-10, keine neue Storage-Policy nötig
+- [x] Kein SQL-Injection-Risiko, keine neuen Secrets
+
+### Bugs Found
+
+| ID | Severity | Beschreibung | Repro |
+|----|----------|----|----|
+| BUG-15-1 | **High** | **Keine Datenmigration/Backfill für bereits vor dieser Änderung vollständig unterschriebene Verträge.** PROJ-10 ist laut `features/INDEX.md` bereits **Deployed** — in der echten Datenbank können also schon Verträge mit `status = 'signed'` existieren (über den alten Einzel-Upload-Weg). Für diese Verträge gibt es keine `contract_signatures`-Zeilen. Das neue `ContractSignaturesPanel` würde für einen solchen Vertrag alle drei Parteien als „Offen" anzeigen — direkt widersprüchlich zum „Unterschrieben"-Badge der bestehenden `ContractCard`/`MunicipalityContractCard`-Anzeige unmittelbar darüber auf derselben Seite. Kein Datenverlust, aber ein sichtbarer, verwirrender Widerspruch auf genau der Seite, die Vertrauen in den Vertragsabschluss schaffen soll — bei einem Feature, dessen Kernversprechen "Protokollierung" ist. | Migration `20260801100000_contract_signatures.sql` enthält keinen Backfill-Schritt (im Unterschied zum etablierten Muster aus PROJ-16, das genau für diesen alte-Feld-zu-neuem-Modell-Übergang einen Backfill durchführt) |
+| BUG-15-2 | Medium | Beim Kandidaten-Fallback (Datei-Upload durch internes Personal) zeigt die Protokoll-Übersicht „Unterschrieben am ... von [Name des internen Mitarbeitenden]" statt des Kandidatennamens — `loadSignatures.ts` verwendet für `method='upload'` das `created_by`-Feld (wer den Upload durchgeführt hat), nicht den Namen der tatsächlich unterschreibenden Person. Kann den Eindruck erwecken, die interne Person hätte selbst unterschrieben, statt nur die physische Unterschrift des Kandidaten stellvertretend hochgeladen zu haben — bei einem "Protokollierung"-Feature eine echte Ungenauigkeit in der Zuordnung. | `src/lib/contracts/loadSignatures.ts:47` |
+| BUG-15-3 | Low | Bei echter Gleichzeitigkeit (zwei oder drei Parteien schliessen ihren Anteil im selben Sekundenbruchteil ab) könnten mehrere der beteiligten Server-Aktionen unabhängig voneinander `count === 3` sehen und jede für sich die "vollständig unterschrieben"-Benachrichtigung auslösen — der Vertragsstatus selbst wird durch den Trigger korrekt nur einmal gesetzt, aber die Benachrichtigung könnte doppelt ankommen. Die Spec-Edge-Case-Beschreibung ("keine doppelte Abschluss-Benachrichtigung") ist hier optimistischer als die tatsächliche Garantie. Rein kosmetisch, kein Datenproblem — gleiche Risikoklasse wie bereits in PROJ-17/18 akzeptierte Gleichzeitigkeitsfälle. | `src/lib/contracts/sign-digital.ts` — `finalizeSignature()` liest den Zähler in einer separaten Anfrage nach dem eigenen Insert, kein Lock über alle drei möglichen gleichzeitigen Aufrufe hinweg |
+
+**Kritische Bugs: 0** — **Hohe Bugs: 1** (BUG-15-1)
+**Medium: 1, Low: 1**
+
+### Production-Ready Decision
+**READY: NO** — BUG-15-1 ist ein High-Bug (widersprüchliche, vertrauensschädigende Anzeige für bereits real existierende, unterschriebene Verträge) und muss vor dem Deployment behoben werden. Status bleibt **In Review**, gemäss Nutzeranweisung wird hier angehalten und auf Freigabe gewartet, bevor mit PROJ-15 fortgefahren oder BUG-15-1 behoben wird.
 
 ## Deployment
 _To be added by /deploy_
