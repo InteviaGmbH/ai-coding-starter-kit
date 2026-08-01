@@ -5,8 +5,17 @@ import { getCurrentProfile } from "@/lib/auth/get-current-profile"
 import { MessageThread } from "@/components/portal/message-thread"
 import { loadMessageThread } from "@/lib/messages/loadThread"
 import { sendMunicipalityGeneralMessage } from "@/app/municipality/messages/actions"
+import { getRecentNotifications } from "@/lib/notifications/get-recent-notifications"
+import { loadAssignmentStatusDistribution } from "@/lib/dashboard/load-assignment-status-distribution"
+import { isWidgetVisible, type DashboardWidgetKey } from "@/lib/dashboard/widget-keys"
+import { DashboardWidgetToggle } from "@/components/portal/dashboard-widget-toggle"
+import { DashboardActivityList } from "@/components/portal/dashboard-activity-list"
+import { DashboardQuickActions } from "@/components/portal/dashboard-quick-actions"
+import { StatusDistributionChart } from "@/components/portal/status-distribution-chart"
 
 export const metadata: Metadata = { title: "Dashboard — Dafinex" }
+
+const AVAILABLE_WIDGETS: DashboardWidgetKey[] = ["stats", "activity", "chart", "quickActions"]
 
 export default async function MunicipalityDashboardPage() {
   const profile = await getCurrentProfile()
@@ -49,23 +58,56 @@ export default async function MunicipalityDashboardPage() {
       )
     : null
 
+  const [notifications, statusDistribution] = await Promise.all([
+    profile ? getRecentNotifications(profile.id) : Promise.resolve([]),
+    loadAssignmentStatusDistribution(),
+  ])
+
+  const hidden = profile?.hiddenDashboardWidgets ?? []
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Dashboard</h1>
-      <div className="grid gap-4 sm:grid-cols-3">
-        {stats.map((stat) => (
-          <Card key={stat.label}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-semibold">{stat.value}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Dashboard</h1>
+        <DashboardWidgetToggle availableWidgets={AVAILABLE_WIDGETS} hidden={hidden} />
       </div>
+
+      {isWidgetVisible(hidden, "stats") && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          {stats.map((stat) => (
+            <Card key={stat.label}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {stat.label}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-semibold">{stat.value}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {isWidgetVisible(hidden, "quickActions") && (
+        <DashboardQuickActions
+          actions={[{ label: "Neue Anfrage erstellen", href: "/municipality/requests" }]}
+        />
+      )}
+
+      {isWidgetVisible(hidden, "chart") && (
+        <StatusDistributionChart title="Meine Einsätze nach Status" data={statusDistribution} />
+      )}
+
+      {isWidgetVisible(hidden, "activity") && (
+        <DashboardActivityList
+          items={notifications.slice(0, 5).map((n) => ({
+            id: n.id,
+            description: n.message,
+            createdDate: n.createdDate,
+          }))}
+        />
+      )}
 
       {thread && (
         <MessageThread

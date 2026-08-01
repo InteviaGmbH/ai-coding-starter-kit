@@ -5,8 +5,15 @@ import { getCurrentProfile } from "@/lib/auth/get-current-profile"
 import { MessageThread } from "@/components/portal/message-thread"
 import { loadMessageThread } from "@/lib/messages/loadThread"
 import { sendCandidateGeneralMessage } from "@/app/candidate/messages/actions"
+import { getRecentNotifications } from "@/lib/notifications/get-recent-notifications"
+import { isWidgetVisible, type DashboardWidgetKey } from "@/lib/dashboard/widget-keys"
+import { DashboardWidgetToggle } from "@/components/portal/dashboard-widget-toggle"
+import { DashboardActivityList } from "@/components/portal/dashboard-activity-list"
+import { DashboardQuickActions } from "@/components/portal/dashboard-quick-actions"
 
 export const metadata: Metadata = { title: "Dashboard — Dafinex" }
+
+const AVAILABLE_WIDGETS: DashboardWidgetKey[] = ["stats", "activity", "quickActions"]
 
 export default async function CandidateDashboardPage() {
   const profile = await getCurrentProfile()
@@ -47,23 +54,51 @@ export default async function CandidateDashboardPage() {
       )
     : null
 
+  const notifications = profile ? await getRecentNotifications(profile.id) : []
+  const hidden = profile?.hiddenDashboardWidgets ?? []
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Dashboard</h1>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
-          <Card key={stat.label}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">{stat.value}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Dashboard</h1>
+        <DashboardWidgetToggle availableWidgets={AVAILABLE_WIDGETS} hidden={hidden} />
       </div>
+
+      {isWidgetVisible(hidden, "stats") && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {stats.map((stat) => (
+            <Card key={stat.label}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {stat.label}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold">{stat.value}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {isWidgetVisible(hidden, "quickActions") && (
+        <DashboardQuickActions
+          actions={[
+            { label: "Profil bearbeiten", href: "/candidate/profile" },
+            { label: "Dokumente verwalten", href: "/candidate/profile" },
+          ]}
+        />
+      )}
+
+      {isWidgetVisible(hidden, "activity") && (
+        <DashboardActivityList
+          items={notifications.slice(0, 5).map((n) => ({
+            id: n.id,
+            description: n.message,
+            createdDate: n.createdDate,
+          }))}
+        />
+      )}
 
       {thread && (
         <MessageThread

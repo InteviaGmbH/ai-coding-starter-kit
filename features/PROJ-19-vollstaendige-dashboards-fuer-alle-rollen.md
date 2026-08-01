@@ -1,8 +1,8 @@
 # PROJ-19: Vollständige Dashboards für alle Rollen
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-07-31
-**Last Updated:** 2026-07-31 (Tech Design ergänzt — siehe Abschnitt "Tech Design (Solution Architect)")
+**Last Updated:** 2026-08-01 (Implementation abgeschlossen — siehe Abschnitt "Implementation Notes")
 
 ## Dependencies
 - Requires: PROJ-2 (Auth & Portal-Grundgerüst) — Portal-Shell, Rollenprüfung
@@ -161,6 +161,27 @@ Eine kleine Ergänzung am bestehenden Profil ist nötig, um die Widget-Sichtbark
 
 ### D) Dependencies (packages to install)
 - `recharts` (+ die shadcn/ui-Chart-Komponente, die darauf aufbaut) — für die beiden Status-Diagramme
+
+## Implementation Notes
+
+### Datenbank
+- Migration `20260801090000_dashboard_widget_visibility.sql`: eine neue Spalte `profiles.hidden_dashboard_widgets` (Text-Array, Default leer). Keine RLS-Änderung nötig — die bestehende `profiles_update_own_limited`-Policy erlaubt Selbst-Updates bereits, und die neue Spalte ist nicht Teil der bestehenden `WITH CHECK`-Einschränkungen (Rolle/Status/Zuordnung).
+
+### Anwendungscode
+- Neue Pakete: `recharts` + die shadcn/ui-`chart`-Komponente (`src/components/ui/chart.tsx`).
+- `src/lib/dashboard/widget-keys.ts`: gemeinsame Widget-Schlüssel/-Labels (`stats`/`activity`/`chart`/`quickActions`) und `isWidgetVisible()`.
+- `src/lib/dashboard/load-activity-preview.ts`: letzte 5 Aktivitätenprotokoll-Einträge (intern), nutzt dieselbe `describeActivity()`-Beschriftung wie `/internal/activity`.
+- `src/lib/dashboard/load-assignment-status-distribution.ts`: zählt Einsätze je Status — bewusst ohne expliziten Gemeinde-Filter, RLS (`assignments_select`) skaliert die Zählung für Gemeinde-Aufrufer automatisch korrekt auf die eigenen Einsätze, exakt wie die bereits bestehenden Kennzahlen-Kacheln.
+- Neue Server Action `src/app/dashboard-preferences/actions.ts` (`updateHiddenDashboardWidgets`): selbst-scoped Update auf das eigene Profil.
+- Neue UI-Bausteine: `dashboard-widget-toggle.tsx` (Popover mit Checkboxen, persistiert sofort bei jedem Toggle), `dashboard-activity-list.tsx`, `dashboard-quick-actions.tsx`, `status-distribution-chart.tsx` (Balkendiagramm über die shadcn-Chart-Komponente).
+- `getCurrentProfile()` (`src/lib/auth/get-current-profile.ts`) liefert jetzt zusätzlich `hiddenDashboardWidgets`; `getPortalPathForProfile()` um einen `partner_company`-Zweig ergänzt (→ `/partner/dashboard`).
+- Neuer, minimaler Portal-Zweig `src/app/partner/` (`layout.tsx` + `dashboard/page.tsx`): reine Platzhalter-Seite ohne Datenanbindung, gleiches Rollenprüfungs-Muster wie die drei bestehenden Portale.
+- Alle drei bestehenden Dashboard-Seiten (`internal`/`municipality`/`candidate`) erweitert: bestehende Kennzahlen-Kacheln bleiben unverändert, neu je nach Rolle Aktivitäts-Vorschau, Status-Diagramm (nicht bei Kandidat) und Schnellzugriffe, alle über den Widget-Toggle ein-/ausblendbar.
+
+### Verifikation
+- `npx eslint` (alle neuen/geänderten Dateien): keine Fehler
+- `npx vitest run`: 157/157 Tests grün (5 neu: `isWidgetVisible`, `updateHiddenDashboardWidgets`)
+- `npm run build`: erfolgreich, alle Routen (inkl. neuer `/partner/dashboard`-Route) kompilieren
 
 ## QA Test Results
 _To be added by /qa_

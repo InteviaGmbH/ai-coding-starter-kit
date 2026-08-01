@@ -33,7 +33,7 @@
 | PROJ-16 | Vollständiges Dokumentenmanagement | Approved | [PROJ-16](PROJ-16-vollstaendiges-dokumentenmanagement.md) | 2026-07-25 |
 | PROJ-17 | Vollständiges Nachrichtensystem | Approved | [PROJ-17](PROJ-17-vollstaendiges-nachrichtensystem.md) | 2026-07-25 |
 | PROJ-18 | Alle Benachrichtigungstrigger + Erinnerungslogik | Approved | [PROJ-18](PROJ-18-alle-benachrichtigungstrigger-erinnerungslogik.md) | 2026-07-25 |
-| PROJ-19 | Vollständige Dashboards für alle Rollen | Architected | [PROJ-19](PROJ-19-vollstaendige-dashboards-fuer-alle-rollen.md) | 2026-07-25 |
+| PROJ-19 | Vollständige Dashboards für alle Rollen | In Progress | [PROJ-19](PROJ-19-vollstaendige-dashboards-fuer-alle-rollen.md) | 2026-07-25 |
 | PROJ-20 | Kandidatenportal – Selbstverwaltung für Kandidaten | Approved | [PROJ-20](PROJ-20-kandidatenportal-selbstverwaltung.md) | 2026-07-28 |
 
 <!-- Add features above this line -->

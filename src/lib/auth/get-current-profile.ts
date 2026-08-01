@@ -18,6 +18,7 @@ export interface CurrentProfile {
   accountStatus: AccountStatus
   municipalityId: string | null
   candidateId: string | null
+  hiddenDashboardWidgets: string[]
 }
 
 export const INTERNAL_ROLES: UserRole[] = [
@@ -40,7 +41,9 @@ export async function getCurrentProfile(): Promise<CurrentProfile | null> {
 
   const { data: profile, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, account_status, municipality_id, candidate_id")
+    .select(
+      "id, email, full_name, role, account_status, municipality_id, candidate_id, hidden_dashboard_widgets"
+    )
     .eq("id", user.id)
     .single()
 
@@ -56,6 +59,7 @@ export async function getCurrentProfile(): Promise<CurrentProfile | null> {
     accountStatus: profile.account_status,
     municipalityId: profile.municipality_id,
     candidateId: profile.candidate_id,
+    hiddenDashboardWidgets: profile.hidden_dashboard_widgets ?? [],
   }
 }
 
@@ -66,5 +70,6 @@ export function getPortalPathForProfile(profile: CurrentProfile): string {
   if (INTERNAL_ROLES.includes(profile.role)) return "/internal/dashboard"
   if (profile.role === "municipality") return "/municipality/dashboard"
   if (profile.role === "candidate") return "/candidate/dashboard"
+  if (profile.role === "partner_company") return "/partner/dashboard"
   return "/login"
 }
