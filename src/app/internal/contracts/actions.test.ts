@@ -185,15 +185,16 @@ const SIGNING_CONTEXT_CONTRACT = {
 function mockSigningClient(opts?: {
   contract?: typeof SIGNING_CONTEXT_CONTRACT | null
   signatureInsertError?: { code?: string; message: string } | null
-  signatureCount?: number
+  wonCompletionClaim?: boolean
 }) {
   const contract = opts?.contract === undefined ? SIGNING_CONTEXT_CONTRACT : opts.contract
   const signatureInsertError = opts?.signatureInsertError ?? null
-  const signatureCount = opts?.signatureCount ?? 1
+  const wonCompletionClaim = opts?.wonCompletionClaim ?? false
 
   const signatureInsert = vi.fn(async () => ({ error: signatureInsertError }))
   const activityLogInsert = vi.fn(async () => ({ error: null }))
   const notificationsInsert = vi.fn(async () => ({ error: null }))
+  const rpc = vi.fn(async () => ({ data: wonCompletionClaim, error: null }))
 
   const contracts = {
     select: vi.fn(() => ({
@@ -203,9 +204,6 @@ function mockSigningClient(opts?: {
 
   const contractSignatures = {
     insert: signatureInsert,
-    select: vi.fn(() => ({
-      eq: vi.fn(async () => ({ count: signatureCount, error: null })),
-    })),
   }
 
   const client = {
@@ -216,9 +214,10 @@ function mockSigningClient(opts?: {
       if (table === "notifications") return { insert: notificationsInsert }
       throw new Error(`unexpected table: ${table}`)
     }),
+    rpc,
   }
 
-  return { client, signatureInsert, activityLogInsert, notificationsInsert }
+  return { client, signatureInsert, activityLogInsert, notificationsInsert, rpc }
 }
 
 async function importSigningActions(client: unknown, profile: unknown = activeAdminProfile) {
@@ -287,14 +286,28 @@ describe("signContractAsDafinex", () => {
     expect(result).toEqual({ success: false, error: "Sie haben bereits unterschrieben." })
   })
 
-  it("sends the completion notification once all three parties have signed", async () => {
-    const { client, notificationsInsert } = mockSigningClient({ signatureCount: 3 })
+  it("sends the completion notification when it wins the atomic completion claim", async () => {
+    const { client, notificationsInsert, rpc } = mockSigningClient({ wonCompletionClaim: true })
+    const { signContractAsDafinex } = await importSigningActions(client)
+
+    await signContractAsDafinex(CONTRACT_ID, { signerName: "Max Muster", agreed: true })
+    expect(rpc).toHaveBeenCalledWith("claim_contract_completion_notification", {
+      p_contract_id: CONTRACT_ID,
+    })
+    expect(notificationsInsert).toHaveBeenCalledWith([
+      expect.objectContaining({ recipient_id: MUNICIPALITY_USER_ID, type: "contract_signed" }),
+      expect.objectContaining({ recipient_id: CANDIDATE_USER_ID, type: "contract_signed" }),
+    ])
+  })
+
+  it("sends only the partial notification when it does not win the completion claim", async () => {
+    const { client, notificationsInsert } = mockSigningClient({ wonCompletionClaim: false })
     const { signContractAsDafinex } = await importSigningActions(client)
 
     await signContractAsDafinex(CONTRACT_ID, { signerName: "Max Muster", agreed: true })
     expect(notificationsInsert).toHaveBeenCalledWith([
-      expect.objectContaining({ recipient_id: MUNICIPALITY_USER_ID, type: "contract_signed" }),
-      expect.objectContaining({ recipient_id: CANDIDATE_USER_ID, type: "contract_signed" }),
+      expect.objectContaining({ recipient_id: MUNICIPALITY_USER_ID, type: "contract_party_signed" }),
+      expect.objectContaining({ recipient_id: CANDIDATE_USER_ID, type: "contract_party_signed" }),
     ])
   })
 })

@@ -42,15 +42,13 @@ function mockSupabaseClient() {
         }
       }
       if (table === "contract_signatures") {
-        return {
-          insert: signatureInsert,
-          select: () => ({ eq: async () => ({ count: 1, error: null }) }),
-        }
+        return { insert: signatureInsert }
       }
       if (table === "activity_log") return { insert: activityLogInsert }
       if (table === "notifications") return { insert: notificationsInsert }
       throw new Error(`unexpected table: ${table}`)
     }),
+    rpc: vi.fn(async () => ({ data: false, error: null })),
   }
 
   return { client, signatureInsert }

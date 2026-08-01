@@ -1,8 +1,8 @@
 # PROJ-15: Digitale Multi-Party-Signaturen mit Protokollierung
 
-## Status: In Review
+## Status: Approved
 **Created:** 2026-08-01
-**Last Updated:** 2026-08-01 (QA durchgeführt — 1 High-Bug gefunden, wartet auf Nutzer-Freigabe vor Fix. Siehe „QA Test Results".)
+**Last Updated:** 2026-08-01 (Alle drei QA-Bugs behoben — Backfill-Migration, korrekte Namenszuordnung, atomarer Vollständigkeits-Claim gegen doppelte Benachrichtigung. Siehe „QA Test Results".)
 
 ## Dependencies
 - Requires: PROJ-10 (Einfache Vertragsgenerierung) — bestehendes Vertragsmodell (`contracts`: generated/signed), das um digitale Mehrparteien-Unterschriften erweitert wird
@@ -222,11 +222,29 @@ Wie bereits bei PROJ-14/16/17/18/19 etabliert: kein Browser-Tool und keine `.env
 | BUG-15-2 | Medium | Beim Kandidaten-Fallback (Datei-Upload durch internes Personal) zeigt die Protokoll-Übersicht „Unterschrieben am ... von [Name des internen Mitarbeitenden]" statt des Kandidatennamens — `loadSignatures.ts` verwendet für `method='upload'` das `created_by`-Feld (wer den Upload durchgeführt hat), nicht den Namen der tatsächlich unterschreibenden Person. Kann den Eindruck erwecken, die interne Person hätte selbst unterschrieben, statt nur die physische Unterschrift des Kandidaten stellvertretend hochgeladen zu haben — bei einem "Protokollierung"-Feature eine echte Ungenauigkeit in der Zuordnung. | `src/lib/contracts/loadSignatures.ts:47` |
 | BUG-15-3 | Low | Bei echter Gleichzeitigkeit (zwei oder drei Parteien schliessen ihren Anteil im selben Sekundenbruchteil ab) könnten mehrere der beteiligten Server-Aktionen unabhängig voneinander `count === 3` sehen und jede für sich die "vollständig unterschrieben"-Benachrichtigung auslösen — der Vertragsstatus selbst wird durch den Trigger korrekt nur einmal gesetzt, aber die Benachrichtigung könnte doppelt ankommen. Die Spec-Edge-Case-Beschreibung ("keine doppelte Abschluss-Benachrichtigung") ist hier optimistischer als die tatsächliche Garantie. Rein kosmetisch, kein Datenproblem — gleiche Risikoklasse wie bereits in PROJ-17/18 akzeptierte Gleichzeitigkeitsfälle. | `src/lib/contracts/sign-digital.ts` — `finalizeSignature()` liest den Zähler in einer separaten Anfrage nach dem eigenen Insert, kein Lock über alle drei möglichen gleichzeitigen Aufrufe hinweg |
 
-**Kritische Bugs: 0** — **Hohe Bugs: 1** (BUG-15-1)
-**Medium: 1, Low: 1**
+**Kritische Bugs: 0** — **Hohe Bugs: 1** (BUG-15-1, behoben)
+**Medium: 1 (behoben), Low: 1 (behoben)**
+
+### Fixes (nach Nutzer-Freigabe)
+Alle drei Bugs wurden in der vom Nutzer vorgegebenen Reihenfolge behoben:
+
+- **BUG-15-1 (High) — behoben:** Neue Migration `20260801110000_contract_signatures_fixes.sql` fügt einen Backfill hinzu, der für jeden bereits `status = 'signed'` Vertrag (aus der Zeit vor `contract_signatures`) drei synthetische `upload`-Zeilen einfügt — eine je Partei, mit dem alten `signed_document_path` als Datei und `updated_date` als bester verfügbarer Zeitpunkt-Näherung. `created_by = 'Migriert (Altsystem vor PROJ-15)'` markiert diese Zeilen klar als historisch. `ON CONFLICT (contract_id, party_type) DO NOTHING` macht die Migration sicher wiederholbar. Analog zum bereits etablierten Backfill-Muster aus PROJ-16.
+- **BUG-15-2 (Medium) — behoben:** `loadSignatures.ts` fragt jetzt zusätzlich den Kandidatennamen über die Vertrag→Einsatz→Vorschlag→Kandidat-Kette ab und verwendet ihn für den `candidate`-Partei-Eintrag, sobald `method = 'upload'` — statt weiterhin `created_by` (die hochladende interne Person) anzuzeigen. Neuer Test `loadSignatures.test.ts` verifiziert explizit, dass ein Fallback-Upload dem Kandidaten zugeordnet wird, nicht der internen Person.
+- **BUG-15-3 (Low) — behoben:** Neue Spalte `contracts.completion_notified` + SECURITY-DEFINER-RPC `claim_contract_completion_notification()`, die das Flag atomar von `false` auf `true` setzt und zurückmeldet, ob der Aufruf „gewonnen" hat. `finalizeSignature()` sendet die Vollständigkeits-Benachrichtigung nur noch, wenn der eigene Aufruf den Claim tatsächlich gewinnt — bei echter Gleichzeitigkeit serialisiert Postgres' Zeilensperre die konkurrierenden Aufrufe zuverlässig auf genau einen Gewinner.
+
+**Erneute Verifikation nach den Fixes:** `npx vitest run` → 168/168 grün (4 neu: Backfill-/Namens-Zuordnungstest, zwei Completion-Claim-Verzweigungstests); `npx eslint` auf allen geänderten Dateien → keine Fehler; `npm run build` → erfolgreich, alle Routen kompilieren.
 
 ### Production-Ready Decision
-**READY: NO** — BUG-15-1 ist ein High-Bug (widersprüchliche, vertrauensschädigende Anzeige für bereits real existierende, unterschriebene Verträge) und muss vor dem Deployment behoben werden. Status bleibt **In Review**, gemäss Nutzeranweisung wird hier angehalten und auf Freigabe gewartet, bevor mit PROJ-15 fortgefahren oder BUG-15-1 behoben wird.
+**READY: YES** — keine offenen Critical/High/Medium/Low-Bugs mehr. Status auf **Approved** gesetzt.
+
+### Hinweis zur Produktionsdatenbank
+Diese Sandbox-Umgebung hat keine funktionierenden Supabase-Zugangsdaten (durchgehend etablierte Einschränkung in dieser Session) — ich kann daher **nicht direkt prüfen**, ob in der echten Produktionsdatenbank bereits vollständig signierte Verträge existieren, die von der Backfill-Migration betroffen wären. Bitte einmal direkt im Supabase SQL Editor gegen die echte Datenbank ausführen:
+```sql
+select count(*) as bereits_signierte_vertraege
+from contracts
+where status = 'signed' and signed_document_path is not null;
+```
+Das Ergebnis zeigt genau, wie viele Verträge die neue Backfill-Migration (`20260801110000_contract_signatures_fixes.sql`) beim nächsten Ausführen mit historischen Unterschrifts-Einträgen versehen wird — unabhängig vom Ergebnis ist die Migration sicher auszuführen (0 betroffene Zeilen ist ein ebenso gültiges, unschädliches Ergebnis wie eine positive Anzahl).
 
 ## Deployment
 _To be added by /deploy_

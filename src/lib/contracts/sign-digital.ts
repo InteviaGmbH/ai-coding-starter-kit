@@ -59,9 +59,18 @@ export async function signContractDigitally(
 
 /**
  * Shared tail for both signing paths (digital + the candidate upload
- * fallback): checks whether the contract is now fully signed (the DB
- * trigger already flipped contracts.status — this just decides which
- * notification to send), then revalidates every portal's assignment page.
+ * fallback): the DB trigger already flipped contracts.status once all
+ * three parties have signed — this decides which notification to send,
+ * then revalidates every portal's assignment page.
+ *
+ * PROJ-15 QA fix (BUG-15-3): two parties completing the contract within
+ * the same moment could each independently query "is it fully signed
+ * now?" and both see yes, double-firing the completion notification. A
+ * plain re-count here can't tell "I caused this" from "someone else did,
+ * a moment ago" — both queries run as separate, already-committed reads.
+ * claim_contract_completion_notification() atomically flips a dedicated
+ * flag exactly once (Postgres row-level locking serializes concurrent
+ * callers), so only whichever call actually wins the race sends it.
  */
 export async function finalizeSignature(
   ctx: ContractSigningContext,
@@ -69,17 +78,17 @@ export async function finalizeSignature(
 ): Promise<void> {
   const supabase = await createClient()
 
-  const { count } = await supabase
-    .from("contract_signatures")
-    .select("id", { count: "exact", head: true })
-    .eq("contract_id", ctx.contractId)
+  const { data: wonCompletionClaim } = await supabase.rpc(
+    "claim_contract_completion_notification",
+    { p_contract_id: ctx.contractId }
+  )
 
   const recipients = {
     municipalityProfileId: ctx.municipalityProfileId,
     candidateProfileId: ctx.candidateProfileId,
   }
 
-  if (count === 3) {
+  if (wonCompletionClaim) {
     await notifyContractFullySigned(recipients, ctx.contractTitle)
   } else {
     await notifyContractPartySigned(partyType, recipients, ctx.contractTitle)
