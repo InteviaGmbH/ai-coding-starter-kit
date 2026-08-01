@@ -1,0 +1,118 @@
+# PROJ-19: Vollständige Dashboards für alle Rollen
+
+## Status: Planned
+**Created:** 2026-07-31
+**Last Updated:** 2026-07-31
+
+## Dependencies
+- Requires: PROJ-2 (Auth & Portal-Grundgerüst) — Portal-Shell, Rollenprüfung
+- Requires: PROJ-11/17/18 (Benachrichtigungen) — Basis für die Aktivitäts-Vorschau bei Gemeinde/Kandidat
+- Requires: PROJ-12 (Aktivitätenprotokoll Basis) — Basis für die Aktivitäts-Vorschau bei internem Personal
+- Requires: PROJ-2 (Freischaltungen) — Anzahl ausstehender Konten für den internen Schnellzugriff
+
+## User Stories
+- Als `dafinex_admin`/`internal_coordinator` möchte ich auf meinem Dashboard sofort sehen, was zuletzt im System passiert ist, damit ich nicht erst das Aktivitätenprotokoll separat öffnen muss.
+- Als `dafinex_admin`/`internal_coordinator` möchte ich vom Dashboard aus direkt eine neue Gemeinde/einen neuen Kandidaten anlegen oder ausstehende Freischaltungen prüfen können, damit die häufigsten nächsten Schritte einen Klick entfernt sind.
+- Als `dafinex_admin`/`internal_coordinator` möchte ich auf einen Blick sehen, wie sich alle Einsätze über die Statusstufen verteilen, damit ich den Gesamtüberblick habe, ohne die Einsatzliste zu filtern.
+- Als `municipality`-Nutzer möchte ich auf meinem Dashboard meine letzten Benachrichtigungen, die Statusverteilung meiner eigenen Einsätze und einen direkten Weg zu "Neue Anfrage erstellen" sehen, damit das Dashboard ein echter Startpunkt ist, nicht nur eine Zahlenübersicht.
+- Als `candidate` möchte ich auf meinem Dashboard meine letzten Benachrichtigungen sowie einen direkten Weg zu Profil/Dokumenten sehen, damit ich meinen Status auf einen Blick erfasse.
+- Als jede/r Nutzer/in möchte ich einzelne Dashboard-Bereiche, die mich nicht interessieren, ausblenden können, damit mein Dashboard nur zeigt, was für mich relevant ist.
+- Als Partnerfirmen-Kontakt (`partner_company`, Phase 2 vorbereitet) möchte ich beim Einloggen zumindest eine "Kommt bald"-Seite sehen statt eines Fehlers, falls mein Konto vorzeitig existiert.
+
+## Out of Scope
+- **Neue, von Benachrichtigungen unabhängige Aktivitäts-Tabelle für Gemeinde/Kandidat** — die Aktivitäts-Vorschau dieser beiden Rollen nutzt ausschliesslich die bereits bestehenden eigenen Benachrichtigungen (PROJ-11/17/18), keine neue Datenquelle
+- **Frei anordenbare Widgets per Drag & Drop** — Reihenfolge bleibt fest, nur Ein-/Ausblenden ist konfigurierbar (siehe Product Decisions)
+- **Inline-Erstellformulare direkt auf dem Dashboard** — die Schnellzugriffe verlinken auf die jeweils bestehende Seite mit dem bereits etablierten Erstell-Dialog (z.B. `/municipality/requests` für "Neue Anfrage"), keine Duplizierung der Formulare auf dem Dashboard selbst
+- **Vollwertiges Partnerfirmen-Dashboard mit echten Daten/Kennzahlen** — die `partner_company`-Rolle hat laut PRD (Non-Goals: "Kein Partnerportal → Phase 2") noch keinen Login-Weg, kein Layout, kein Datenmodell; diese Spec liefert nur eine minimale Platzhalter-Seite, kein funktionales Dashboard. Ein vollwertiges Partner-Dashboard ist Teil von PROJ-13, sobald das Partnerportal selbst spezifiziert wird
+- **Zeitverlaufs-Charts** (z.B. Anfragen pro Woche) — nur Status-Verteilung (Momentaufnahme), kein Zeitreihen-Aggregat für den Piloten
+- **Chart auf dem Kandidaten-Dashboard** — zu wenig eigene Verlaufsdaten pro Kandidat, um ein aussagekräftiges Diagramm zu rechtfertigen
+- **Echtzeit-Aktualisierung ohne Neuladen** — Dashboard-Inhalte werden beim Laden der Seite geholt, kein Realtime-Abo, konsistent mit dem Rest des Projekts
+
+## Acceptance Criteria
+
+**Format:** Angenommen [Vorbedingung] / Wenn [Aktion], dann [Ergebnis]
+
+### Internes Dashboard (`/internal/dashboard`)
+- [ ] Angenommen internes Personal öffnet das Dashboard, dann sieht es weiterhin die bestehenden Kennzahlen-Kacheln (Gemeinden, Kandidaten, Offene Anfragen) unverändert
+- [ ] Angenommen internes Personal öffnet das Dashboard, dann sieht es zusätzlich eine Liste der letzten 5 Einträge aus dem Aktivitätenprotokoll, mit derselben deutschen Beschreibung wie auf `/internal/activity`
+- [ ] Angenommen es gibt noch keine Aktivität, dann erscheint ein Hinweistext statt einer leeren Liste
+- [ ] Angenommen internes Personal öffnet das Dashboard, dann sieht es drei Schnellzugriffe: „Neue Gemeinde", „Neuer Kandidat", „Freischaltungen" — Letzterer zeigt die Anzahl ausstehender Konten an, falls vorhanden
+- [ ] Angenommen es gibt keine ausstehenden Freischaltungen, dann zeigt der Schnellzugriff keine Zahl an (oder „0"), führt aber weiterhin zur Freischaltungs-Seite
+- [ ] Angenommen internes Personal öffnet das Dashboard, dann sieht es ein Diagramm mit der Verteilung aller Einsätze nach Status (proposed/accepted/active/completed)
+- [ ] Angenommen es gibt noch keine Einsätze, dann zeigt das Diagramm einen Hinweistext statt eines leeren/fehlerhaften Charts
+
+### Gemeinde-Dashboard (`/municipality/dashboard`)
+- [ ] Angenommen ein `municipality`-Nutzer öffnet das Dashboard, dann sieht er weiterhin die bestehenden Kennzahlen-Kacheln unverändert
+- [ ] Angenommen ein `municipality`-Nutzer öffnet das Dashboard, dann sieht er zusätzlich seine letzten 5 eigenen Benachrichtigungen (unabhängig von gelesen/ungelesen)
+- [ ] Angenommen es gibt noch keine Benachrichtigungen, dann erscheint ein Hinweistext statt einer leeren Liste
+- [ ] Angenommen ein `municipality`-Nutzer öffnet das Dashboard, dann sieht er einen Schnellzugriff „Neue Anfrage erstellen", der zu `/municipality/requests` führt
+- [ ] Angenommen ein `municipality`-Nutzer öffnet das Dashboard, dann sieht er ein Diagramm mit der Statusverteilung ausschliesslich seiner eigenen Einsätze
+- [ ] Angenommen die Gemeinde hat noch keine eigenen Einsätze, dann zeigt das Diagramm einen Hinweistext
+
+### Kandidaten-Dashboard (`/candidate/dashboard`)
+- [ ] Angenommen ein `candidate` öffnet das Dashboard, dann sieht er weiterhin die bestehenden Kennzahlen-Kacheln unverändert
+- [ ] Angenommen ein `candidate` öffnet das Dashboard, dann sieht er zusätzlich seine letzten 5 eigenen Benachrichtigungen
+- [ ] Angenommen es gibt noch keine Benachrichtigungen, dann erscheint ein Hinweistext statt einer leeren Liste
+- [ ] Angenommen ein `candidate` öffnet das Dashboard, dann sieht er Schnellzugriffe „Profil bearbeiten" (→ `/candidate/profile`) und „Dokumente verwalten" (→ `/candidate/profile`, Dokumente-Bereich)
+
+### Konfigurierbare Widgets (alle drei Dashboards)
+- [ ] Angenommen ein Nutzer öffnet sein Dashboard, dann sieht er eine Möglichkeit ("Widgets anpassen"), jeden einzelnen Bereich (Kennzahlen/Aktivität/Chart/Schnellzugriffe, je nach Rolle) ein- oder auszublenden
+- [ ] Angenommen ein Nutzer blendet ein Widget aus, dann bleibt diese Einstellung beim nächsten Login erhalten (pro Nutzer gespeichert)
+- [ ] Angenommen alle Widgets eines Nutzers sind ausgeblendet, dann bleibt die "Widgets anpassen"-Möglichkeit trotzdem sichtbar, damit er sie wieder einblenden kann
+- [ ] Angenommen ein Nutzer hat noch nie eine Einstellung geändert, dann sind standardmässig alle für seine Rolle vorgesehenen Widgets sichtbar
+
+### Partnerfirmen-Platzhalterseite
+- [ ] Angenommen ein Profil mit Rolle `partner_company` und Status `active` loggt sich ein, dann landet es auf einer eigenen Seite mit einem „Kommt bald"-Hinweistext statt einem Fehler oder einer falschen Weiterleitung
+- [ ] Angenommen ein Profil mit Rolle `partner_company` und Status `pending`/`rejected` loggt sich ein, dann greift dieselbe Status-Weiterleitung wie bei den anderen Rollen (`/pending`/`/rejected`)
+
+## Edge Cases
+- Internes Aktivitätenprotokoll ist noch komplett leer (frisches System) → Hinweistext, kein Fehler
+- Sehr viele ausstehende Freischaltungen (zweistellig) → Zahl wird trotzdem einfach angezeigt, keine Sonderbehandlung nötig (Pilot-Massstab)
+- Gemeinde/Kandidat mit sehr vielen Benachrichtigungen → nur die letzten 5 werden angezeigt, „Alle anzeigen"-Link zu `/notifications` (PROJ-17) bleibt der Weg zur vollständigen Liste
+- Eine Benachrichtigung wird direkt vom Dashboard aus angeklickt → führt zur jeweils verlinkten Seite (gleiches Verhalten wie in der Glocke, PROJ-17), Status wird dabei nicht automatisch als gelesen markiert (das Markieren bleibt der Glocke/`/notifications` vorbehalten, keine Dopplung der Logik)
+- Internes Personal ohne jegliche Berechtigung für eine der drei Schnellzugriff-Zielseiten → kann praktisch nicht vorkommen, da alle drei Ziele bereits für jede aktive interne Rolle zugänglich sind (keine zusätzliche Rollenprüfung nötig)
+- Gemeinde/intern hat nur Einsätze in genau einer Statusstufe → Diagramm zeigt trotzdem korrekt einen einzelnen Balken/ein Segment, keine Sonderbehandlung nötig
+- `partner_company`-Profil existiert bereits (z.B. testweise von einem Super-Admin gesetzt), obwohl es aktuell keinen regulären Weg gibt, ein solches Konto anzulegen → Platzhalterseite verhindert zumindest einen Fehler/eine falsche Weiterleitung, falls das doch vorkommt
+- Nutzer blendet ein Widget aus, öffnet das Dashboard dann in einem anderen Browser/Gerät → Einstellung ist pro Nutzer (nicht pro Gerät) gespeichert, gilt also überall gleich
+
+## Technical Requirements (optional)
+- Security: Keine neuen Schreibrechte — alle drei Dashboards lesen ausschliesslich bereits über RLS zugängliche, eigene Daten (Aktivitätenprotokoll bleibt intern-only, Benachrichtigungen bleiben strikt eigene)
+
+## Open Questions
+<!-- Unresolved questions from the spec interview. Close them in /refine when answered. -->
+_Keine offenen Fragen._
+
+## Decision Log
+
+### Product Decisions
+| Decision | Rationale | Date |
+|----------|-----------|------|
+| "Vollständig" bedeutet: bestehende Kennzahlen + Aktivitäts-Vorschau + Schnellzugriffe, nicht nur mehr/andere Kennzahlen | Macht das Dashboard zu einem echten Startpunkt statt einer reinen Zahlenübersicht — direktes Nutzerfeedback in der Spec-Interview-Runde | 2026-07-31 |
+| Aktivitäts-Vorschau für Gemeinde/Kandidat nutzt die bereits bestehenden eigenen Benachrichtigungen, keine neue Datenquelle | Das bestehende Aktivitätenprotokoll ist laut RLS ausschliesslich intern sichtbar; Benachrichtigungen decken für diese beiden Rollen bereits alle relevanten Ereignisse ab (PROJ-11/17/18), kein Grund für eine zusätzliche, parallele Datenstruktur | 2026-07-31 |
+| Internes Dashboard nutzt das bestehende Aktivitätenprotokoll (PROJ-12), auf 5 Einträge begrenzt | Bereits vorhandene, vollständige Datenquelle für internes Personal, keine neue Tabelle nötig | 2026-07-31 |
+| Schnellzugriffe sind reine Links zu bestehenden Seiten mit bereits etablierten Erstell-Dialogen, keine Inline-Formulare auf dem Dashboard | Vermeidet Dopplung der bereits bestehenden `PersonnelRequestFormDialog`/`CandidateFormDialog`/`MunicipalityFormDialog`-Komponenten | 2026-07-31 |
+| Feste Schnellzugriffe pro Rolle (intern: Gemeinde/Kandidat anlegen + Freischaltungen; Gemeinde: neue Anfrage; Kandidat: Profil/Dokumente) statt konfigurierbarer Auswahl | Deckt die jeweils häufigste nächste Aktion pro Rolle ab, ohne die Komplexität einer anpassbaren Dashboard-Konfiguration für den Piloten | 2026-07-31 |
+| Chart als Status-Verteilung (Momentaufnahme), nicht als Zeitverlauf | Direkt aus bereits vorhandenen Statuswerten ableitbar, kein Aggregations-Aufwand über Zeit; bei den bisher kleinen Datenmengen im Pilot ohnehin aussagekräftiger als ein Zeitverlauf | 2026-07-31 |
+| Chart zeigt Einsätze nach Status (nicht Anfragen) | Vier sinnvolle Kategorien (proposed/accepted/active/completed) statt nur zwei bei Anfragen (created/reviewed) — visuell aussagekräftiger | 2026-07-31 |
+| Kein Chart auf dem Kandidaten-Dashboard | Ein Kandidat hat typischerweise nur einen oder sehr wenige eigene Einsätze — zu wenig Datenpunkte für ein aussagekräftiges Diagramm | 2026-07-31 |
+| Nutzer-Korrektur: Scope um Partnerfirmen-Platzhalterseite, Charts und konfigurierbare Widgets (Ein-/Ausblenden) erweitert | Ursprünglicher schlankerer Vorschlag wurde vom Nutzer explizit abgelehnt ("nicht so schlank") — alle drei Ergänzungen aufgenommen, mit Ausnahme des vollwertigen Partner-Dashboards (siehe unten) | 2026-07-31 |
+| Partnerfirmen-Dashboard nur als Platzhalter-Seite, kein echtes Dashboard mit Daten | Kompromiss zwischen Nutzerwunsch und der expliziten PRD-Entscheidung "Kein Partnerportal → Phase 2": die Rolle hat noch keinen Login-Weg/kein Datenmodell; ein echtes Partner-Dashboard wäre faktisch der Start von PROJ-13 und damit ein deutlich grösseres, eigenes Feature, kein Bestandteil einer Dashboard-Spec | 2026-07-31 |
+| Widget-Konfiguration: nur Ein-/Ausblenden, keine freie Anordnung per Drag & Drop | Deckt den Hauptbedarf ("ich will X nicht sehen") ab, ohne den deutlich höheren Aufwand einer Drag-and-Drop-Positionierung bei nur 3-4 Widgets pro Dashboard | 2026-07-31 |
+| Widget-Sichtbarkeit wird pro Nutzer (nicht pro Gerät/Browser) gespeichert | Konsistentes Erlebnis über Geräte hinweg, passt zum bestehenden Muster (alle anderen Präferenzen/Daten sind ebenfalls an das Profil gebunden, nicht an ein Gerät) | 2026-07-31 |
+
+### Technical Decisions
+<!-- Added by /architecture -->
+| Decision | Rationale | Date |
+|----------|-----------|------|
+
+---
+<!-- Sections below are added by subsequent skills -->
+
+## Tech Design (Solution Architect)
+_To be added by /architecture_
+
+## QA Test Results
+_To be added by /qa_
+
+## Deployment
+_To be added by /deploy_
