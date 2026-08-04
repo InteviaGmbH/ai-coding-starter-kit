@@ -23,9 +23,10 @@ interface MockOpts {
   candidateProfileStatus?: string
   existingOpenProposal?: boolean
   insertError?: { message: string } | null
-  proposal?: { id: string; status: string; request_id: string } | null
+  proposal?: { id: string; status: string; request_id: string; proposed_by_id?: string | null } | null
   updateError?: { message: string } | null
   deleteError?: { message: string } | null
+  proposerRole?: string | null
 }
 
 function mockSupabaseClient(opts?: MockOpts) {
@@ -44,6 +45,7 @@ function mockSupabaseClient(opts?: MockOpts) {
       : opts.proposal
   const updateError = opts?.updateError ?? null
   const deleteError = opts?.deleteError ?? null
+  const proposerRole = opts?.proposerRole ?? null
 
   const activityLogInsert = vi.fn(async () => ({ error: null }))
   const notificationsInsert = vi.fn(async () => ({ error: null }))
@@ -64,6 +66,10 @@ function mockSupabaseClient(opts?: MockOpts) {
     select: vi.fn(() => ({
       eq: vi.fn(() => ({
         single: vi.fn(async () => ({ data: { account_status: candidateProfileStatus }, error: null })),
+        maybeSingle: vi.fn(async () => ({
+          data: proposerRole ? { role: proposerRole } : null,
+          error: null,
+        })),
       })),
     })),
   }
@@ -245,6 +251,49 @@ describe("reviewProposal", () => {
     const result = await reviewProposal(PROPOSAL_ID, "approved")
     expect(result.success).toBe(false)
     expect(result.error).toMatch(/bereits entschieden/)
+  })
+
+  const PARTNER_USER_ID = "88888888-8888-4888-a888-888888888888"
+
+  it("notifies a partner-company proposer when their proposal is approved", async () => {
+    const client = mockSupabaseClient({
+      proposal: { id: PROPOSAL_ID, status: "proposed", request_id: REQUEST_ID, proposed_by_id: PARTNER_USER_ID },
+      proposerRole: "partner_company",
+    })
+    const { reviewProposal } = await importActions(client)
+
+    const result = await reviewProposal(PROPOSAL_ID, "approved")
+    expect(result).toEqual({ success: true })
+    expect(client.from("notifications").insert).toHaveBeenCalledWith(
+      expect.objectContaining({ recipient_id: PARTNER_USER_ID, type: "proposal_decision" }),
+    )
+  })
+
+  it("notifies a partner-company proposer when their proposal is rejected (unlike an internal proposer)", async () => {
+    const client = mockSupabaseClient({
+      proposal: { id: PROPOSAL_ID, status: "proposed", request_id: REQUEST_ID, proposed_by_id: PARTNER_USER_ID },
+      proposerRole: "partner_company",
+    })
+    const { reviewProposal } = await importActions(client)
+
+    const result = await reviewProposal(PROPOSAL_ID, "rejected")
+    expect(result).toEqual({ success: true })
+    expect(client.from("notifications").insert).toHaveBeenCalledWith(
+      expect.objectContaining({ recipient_id: PARTNER_USER_ID, type: "proposal_decision" }),
+    )
+  })
+
+  it("does not send a partner notification when the proposer is internal staff", async () => {
+    const client = mockSupabaseClient({
+      proposal: { id: PROPOSAL_ID, status: "proposed", request_id: REQUEST_ID, proposed_by_id: PARTNER_USER_ID },
+      proposerRole: "internal_coordinator",
+    })
+    const { reviewProposal } = await importActions(client)
+
+    await reviewProposal(PROPOSAL_ID, "approved")
+    expect(client.from("notifications").insert).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "proposal_decision" }),
+    )
   })
 })
 

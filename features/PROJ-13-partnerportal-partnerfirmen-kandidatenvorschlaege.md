@@ -1,8 +1,8 @@
 # PROJ-13: Partnerportal + Partnerfirmen-Kandidatenvorschläge
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-08-04
-**Last Updated:** 2026-08-04 (Backend + Frontend implementiert, bereit für /qa)
+**Last Updated:** 2026-08-04 (QA abgeschlossen: 19/19 AC erfüllt, 0 Critical/High, 1 Medium + 2 Low offen)
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — `user_role` enthält bereits `partner_company`, `candidate_source_type` bereits `partner` (bisher unbenutzt, für genau diese Spec vorgesehen)
@@ -199,7 +199,78 @@ Partnerportal (erweitert die PROJ-19-Platzhalterseite um zwei neue Bereiche)
 - Kein neues Messaging/Dokumente/Dashboard für Partnerfirmen (Out of Scope, siehe Spec).
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-08-04
+**App URL:** Kein Browser-Tool/keine funktionierenden Supabase-Zugangsdaten in dieser Umgebung — siehe Testmethode
+**Tester:** QA Engineer (AI)
+
+### Testmethode
+Wie bereits bei PROJ-14/15/16/17/18/19 etabliert: kein Browser-Tool und keine `.env.local` in dieser Umgebung. Abdeckung dieses Durchgangs:
+1. Vollständige Vitest-Suite (193/193) — 25 neue Tests: `createPartnerCompany`-Berechtigungsgrenze (nur `dafinex_admin`/`super_admin`, nicht `internal_coordinator`), Rollback bei fehlgeschlagener Einladung, Löschen des eingeladenen Auth-Users bei fehlgeschlagener Rollen-Elevation, `updatePartnerCompany`/`deletePartnerCompany`-Grundfälle, `createPartnerCandidate`/`updatePartnerCandidate`-Berechtigungsgrenzen inkl. erzwungenem `source_type`/`partner_company_id`, `proposeCandidateAsPartner` inkl. Impersonationsversuch (fremde Firma) und nicht-freigegebene Anfrage, sowie die erweiterte `reviewProposal`-Benachrichtigung an Partnerfirmen bei Freigabe **und** Ablehnung (inkl. Gegenprobe: kein Partner-Event bei internem Vorschlagenden) und `setRequestVisibleToPartners`.
+2. Gezielter Code-Audit der Migration (`20260804090000_partner_companies.sql`): jede neue RLS-Policy einzeln gegen die jeweilige Rolle durchgespielt, insbesondere `partner_companies_select` (kein `partner_company`-Zweig), `get_own_partner_company()`-Rückgabetyp, `profiles_update_own_limited`/`enforce_candidate_self_update_columns`-Erweiterung auf Regression gegen bestehende Rollen geprüft (Vergleich mit dem Stand vor dieser Migration — keine Verhaltensänderung für `municipality`/`candidate`/interne Rollen)
+3. Explizit geprüft: `profiles_update_own_limited` wird in dieser Migration komplett neu erstellt (`drop policy` + `create policy`) — Abgleich mit `20260801090000_dashboard_widget_visibility.sql` (PROJ-19) bestätigt, dass `hidden_dashboard_widgets` bewusst **nicht** Teil dieser Policy ist und daher durch die Neuerstellung nicht betroffen ist (keine Regression der PROJ-19-Dashboard-Widget-Funktion)
+4. Impersonations-Analyse: durchgespielt, ob ein `partner_company`-Nutzer einen fremden Kandidaten vorschlagen kann (verhindert durch App-Check + RLS `candidate_proposals_insert_partner`), ob er eine nicht freigegebene Anfrage einsehen/dafür vorschlagen kann (verhindert durch `personnel_requests_select_partner`/Subquery in `candidate_proposals_insert_partner`), ob er `commission_rate` über einen direkten Tabellenzugriff erreichen kann (strukturell unmöglich — keine SELECT-Policy für diese Rolle auf der Basistabelle, `get_own_partner_company()` liefert die Spalte gar nicht erst zurück)
+5. Bestehende Feature-Regression: Gemeinde-/Kandidaten-/interne Vorschlagsflüsse (PROJ-3/4/5/6/7/8) unverändert, da nur additive Policies/Spalten ergänzt wurden — durch die vollständige Vitest-Suite (keine bestehenden Tests angepasst ausser den beiden dokumentierten Erweiterungen) mitabgedeckt
+6. Kein neuer E2E-Test ergänzt (gleiche Begründung wie in den vorherigen Runden: Login-/Einladungs-Flows in dieser Umgebung nicht sinnvoll testbar, insbesondere da `inviteUserByEmail()` einen echten E-Mail-Versand voraussetzt)
+
+### Acceptance Criteria Status
+**19/19 Acceptance Criteria erfüllt** (Code-Audit + Vitest, s. Testmethode).
+
+#### Partnerfirmen-Verwaltung (intern)
+- [x] Neue Partnerfirma mit Erstkonto anlegen, sofort aktiv ohne Freischaltungs-Workflow — `createPartnerCompany` (Vitest: happy path, `account_status: active` sofort gesetzt)
+- [x] Liste aller Partnerfirmen mit Basisdaten — `/internal/partners`
+
+#### Portal-Zugriff (Partnerfirma)
+- [x] Eigene Navigation (Dashboard/Kandidaten/Anfragen) nach Login — `src/app/partner/layout.tsx`
+- [x] Andere Rollen werden aus dem Partnerportal umgeleitet — bestehende, unveränderte Redirect-Logik aus PROJ-19 (Code-Review, keine Änderung nötig)
+
+#### Kandidatenverwaltung (Partnerfirma)
+- [x] Nur eigene Kandidaten sichtbar — RLS `candidates_select_own_partner` + `/partner/candidates` ohne expliziten Filter (RLS trägt)
+- [x] Neuer Kandidat automatisch `source_type: partner` + eigene Firma — Vitest (`createPartnerCandidate`, Payload-Assertion)
+- [x] Fremde/Dafinex-Kandidaten weder einsehbar noch bearbeitbar — RLS-Analyse (`NULL = NULL` matcht bewusst nicht, s. Testmethode) + Vitest (0-Zeilen-Update-Fall)
+- [x] Internes Personal sieht Partner-Kandidaten wie jeden anderen — bestehende `candidates_select`-Policy (`is_internal_role()`) unverändert, s. jedoch **BUG-13-1**
+
+#### Freigabe von Anfragen für Partnerfirmen (intern)
+- [x] Anfrage explizit freigeben/zurückziehen — `setRequestVisibleToPartners` (Vitest)
+- [x] Nicht freigegebene Anfrage erscheint in keinem Partnerportal — RLS `personnel_requests_select_partner` + expliziter Query-Filter
+
+#### Kandidatenvorschlag durch Partnerfirma
+- [x] Freigegebene Anfragen zeigen Kriterien ohne Gemeinde-Name — `/partner/requests` fragt bewusst ohne `municipality`-Feld ab
+- [x] Eigener Kandidat für freigegebene Anfrage vorschlagen → Status „proposed" — Vitest (`proposeCandidateAsPartner` happy path)
+- [x] Doppel-Vorschlag für offenen Vorschlag abgelehnt — Vitest
+- [x] Partnerfirma wird bei interner Freigabe/Ablehnung benachrichtigt — Vitest (`reviewProposal`, `proposal_decision` bei `approved` UND `rejected`)
+- [x] Partnerfirma wird zusätzlich bei Gemeinde-Entscheidung benachrichtigt — bereits vorhandene `proposed_by_id`-Benachrichtigungslogik aus PROJ-8 (`recipient_id` zeigt unverändert auf den Vorschlagenden, unabhängig von dessen Rolle) — Code-Review, keine Änderung nötig
+- [x] Vorschlag für fremden/nicht-sichtbaren Kandidaten bzw. nicht freigegebene Anfrage verweigert — Vitest (Impersonationsversuch + nicht sichtbare Anfrage)
+
+#### Provision (nur intern)
+- [x] Internes Personal sieht/bearbeitet `commission_rate` — `/internal/partners/[id]` + `updatePartnerCompany`
+- [x] `partner_company`-Nutzer erhält `commission_rate` unter keinen Umständen, auch nicht über direkten Tabellenzugriff — strukturell durch fehlende SELECT-Policy + `get_own_partner_company()`-Rückgabetyp sichergestellt (Code-Audit), s. jedoch **BUG-13-2** (Darstellungsdetail, keine Sicherheitslücke)
+
+### Security Audit Results
+- [x] `commission_rate`: kein Leseweg für `partner_company` — weder direkt noch über die einzige zulässige RPC (Rückgabetyp enthält die Spalte nicht)
+- [x] Kontoerstellung (`createPartnerCompany`) ausschliesslich `dafinex_admin`/`super_admin` — `internal_coordinator` wird sowohl app-seitig als auch (da `profiles_update_by_dafinex_admin` `internal_coordinator` gar nicht erst einschliesst) DB-seitig abgelehnt
+- [x] Keine Selbstregistrierung für `partner_company` möglich — `handle_new_user()` unverändert, Einladung läuft ohne `role`-Metadaten, Rollen-Elevation ausschliesslich serverseitig nach Einladung
+- [x] Impersonation fremder Firma (Kandidat/Anfrage) durchgängig verhindert — App-Check UND RLS greifen unabhängig voneinander (defense in depth)
+- [x] `profiles_update_own_limited`-Erweiterung verhindert Selbstzuordnung zu einer beliebigen Partnerfirma über eine präparierte Profil-Aktualisierung
+- [x] Kein SQL-Injection-Risiko, keine neuen Secrets, kein `dangerouslySetInnerHTML` in neuen Komponenten
+
+### Bugs Found
+
+| ID | Severity | Beschreibung | Repro |
+|----|----------|----|----|
+| BUG-13-1 | Medium | **Interne Kandidatenverwaltung unterscheidet nicht zwischen Dafinex- und Partner-Kandidaten und zeigt für Partner-Kandidaten eine irreführende Herkunftsangabe.** Sowohl `/internal/candidates` (Liste) als auch `/internal/candidates/[id]` (Detail) leiten „Herkunft"/Badge ausschliesslich aus `hasAccount`/`profile_id` ab (`"Selbst registriert"` vs. `"Intern erfasst"`). Da Partner-Kandidaten laut Spec bewusst **kein** eigenes Konto haben (`profile_id` immer `null`), zeigen beide Stellen für einen Partner-Kandidaten fälschlich „Intern erfasst" an — obwohl er tatsächlich von einer Partnerfirma über deren eigenes Portal angelegt wurde. Das bereits vorhandene `sourceType`/`source_type`-Feld wird in beiden Komponenten geladen, aber nirgends dargestellt. Kein Zugriffsproblem, aber eine für internes Personal irreführende Datenherkunfts-Anzeige bei einem Feature, dessen Kernnutzen gerade die Unterscheidung zwischen den beiden Kandidatenquellen ist. | `src/components/portal/candidates-table.tsx:134`, `src/app/internal/candidates/[id]/page.tsx:99` — `c.hasAccount ? "Selbst registriert" : "Intern erfasst"` bzw. `candidate.profile_id ? "Selbst registriert" : "Intern erfasst"` berücksichtigt `source_type`/Partnerfirma nicht |
+| BUG-13-2 | Low | **`commission_rate` ist als Postgres `numeric(5,2)` typisiert und wird von PostgREST als String, nicht als Zahl zurückgegeben** — die einzige `numeric`-Spalte im gesamten Schema (alle anderen Prozent-/Zahlenfelder sind `integer`, dort tritt dieses Verhalten nicht auf). Die TypeScript-Typen (`PartnerCompanyRow.commissionRate: number`, etc.) behaupten fälschlich `number`. Aktuell funktional harmlos, da der Wert ausschliesslich für Anzeige/Formular-Vorbelegung verwendet wird (kein serverseitiges Rechnen damit) — führt aber zu einer kosmetischen Abweichung: ein eingegebener Wert wie „10" wird nach dem Neuladen als „10.00%" statt „10%" angezeigt, und ist eine latente Falle für zukünftigen Code, der mit diesem Feld rechnet (String-Konkatenation statt Multiplikation). | `supabase/migrations/20260804090000_partner_companies.sql:20` (`commission_rate numeric(5, 2)`), betrifft `src/components/portal/partner-companies-table.tsx`, `partner-company-form-dialog.tsx`, `partner-company-detail-actions.tsx`, `src/app/internal/partners/[id]/page.tsx` |
+| BUG-13-3 | Low | **Layout-Unstimmigkeit auf der Anfrage-Detailseite:** Der neue „Für Partnerfirmen freigeben"-Schalter (`InternalRequestDetailActions`) rendert jetzt einen mehrzeiligen `space-y-2`-Block (Schalter-Zeile + Button-Zeile), der in der bestehenden Kopfzeile direkt neben den einzeiligen Buttons „Kandidaten suchen"/„Vorschläge (N)" steht — dadurch wirkt die Kopfzeile uneinheitlich hoch/breit, rein optisch, keine Funktionseinschränkung. | `src/app/internal/requests/[id]/page.tsx` (Header-`flex`-Zeile), `src/components/portal/internal-request-detail-actions.tsx` |
+
+**Kritische Bugs: 0 — Hohe Bugs: 0**
+**Medium: 1, Low: 2**
+
+### Summary
+- **Acceptance Criteria:** 19/19 erfüllt
+- **Bugs Found:** 3 total (0 critical, 0 high, 1 medium, 2 low)
+- **Security:** Pass — keine Lücken gefunden, insbesondere die vom Nutzer explizit geforderte strukturelle `commission_rate`-Sperre hält gegen direkten Tabellenzugriff
+- **Production Ready:** YES (keine Critical/High-Bugs)
+- **Recommendation:** Deploy möglich; BUG-13-1 vor dem Piloten beheben empfohlen (echte Verwirrung für internes Personal), BUG-13-2/-3 können bei Gelegenheit mit erledigt werden
 
 ## Deployment
 _To be added by /deploy_

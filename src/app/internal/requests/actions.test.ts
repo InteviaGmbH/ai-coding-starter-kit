@@ -102,3 +102,57 @@ describe("markRequestReviewed", () => {
     expect(client.from("notifications").insert).not.toHaveBeenCalled()
   })
 })
+
+describe("setRequestVisibleToPartners", () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it("rejects when the caller is not an active internal role", async () => {
+    vi.doMock("@/lib/auth/get-current-profile", () => ({
+      getCurrentProfile: async () => ({ ...activeAdminProfile, role: "partner_company" }),
+      INTERNAL_ROLES: ["super_admin", "dafinex_admin", "internal_coordinator"],
+    }))
+    vi.doMock("@/lib/supabase/server", () => ({ createClient: async () => mockSupabaseClient() }))
+
+    const { setRequestVisibleToPartners } = await import("./actions")
+    const result = await setRequestVisibleToPartners(REQUEST_ID, true)
+
+    expect(result).toEqual({ success: false, error: "Keine Berechtigung." })
+  })
+
+  it("enables partner visibility and logs the correct activity action", async () => {
+    vi.doMock("@/lib/auth/get-current-profile", () => ({
+      getCurrentProfile: async () => activeAdminProfile,
+      INTERNAL_ROLES: ["super_admin", "dafinex_admin", "internal_coordinator"],
+    }))
+    const client = mockSupabaseClient()
+    vi.doMock("@/lib/supabase/server", () => ({ createClient: async () => client }))
+
+    const { setRequestVisibleToPartners } = await import("./actions")
+    const result = await setRequestVisibleToPartners(REQUEST_ID, true)
+
+    expect(result).toEqual({ success: true })
+    expect(client.from("personnel_requests").update).toHaveBeenCalledWith({ visible_to_partners: true })
+    expect(client.from("activity_log").insert).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "visible_to_partners_enabled" })
+    )
+  })
+
+  it("disables partner visibility and logs the correct activity action", async () => {
+    vi.doMock("@/lib/auth/get-current-profile", () => ({
+      getCurrentProfile: async () => activeAdminProfile,
+      INTERNAL_ROLES: ["super_admin", "dafinex_admin", "internal_coordinator"],
+    }))
+    const client = mockSupabaseClient()
+    vi.doMock("@/lib/supabase/server", () => ({ createClient: async () => client }))
+
+    const { setRequestVisibleToPartners } = await import("./actions")
+    const result = await setRequestVisibleToPartners(REQUEST_ID, false)
+
+    expect(result).toEqual({ success: true })
+    expect(client.from("activity_log").insert).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "visible_to_partners_disabled" })
+    )
+  })
+})
