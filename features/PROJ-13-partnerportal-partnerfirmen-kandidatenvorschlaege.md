@@ -2,7 +2,7 @@
 
 ## Status: Architected
 **Created:** 2026-08-04
-**Last Updated:** 2026-08-04 (Tech Design ergänzt — siehe Abschnitt "Tech Design (Solution Architect)")
+**Last Updated:** 2026-08-04 (Provision/`commission_rate` ergänzt — nur intern sichtbar/bearbeitbar, strukturell (nicht nur UI-seitig) gegen Partnerfirmen-Zugriff abgesichert)
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — `user_role` enthält bereits `partner_company`, `candidate_source_type` bereits `partner` (bisher unbenutzt, für genau diese Spec vorgesehen)
@@ -22,6 +22,7 @@
 - Als `dafinex_admin`/`internal_coordinator` möchte ich entscheiden können, welche Anfragen für Partnerfirmen sichtbar sind, damit ich die Kontrolle darüber behalte, was extern bekannt wird.
 - Als `dafinex_admin`/`internal_coordinator` möchte ich Partnervorschläge genau wie interne Vorschläge prüfen und freigeben, damit die Qualitätskontrolle gegenüber der Gemeinde erhalten bleibt.
 - Als `partner_company`-Nutzer möchte ich erfahren, wie über meinen Vorschlag entschieden wurde, damit ich den Status meiner Kandidaten nachverfolgen kann.
+- Als `dafinex_admin`/`internal_coordinator` möchte ich die Provision (`commission_rate`) einer Partnerfirma festlegen und einsehen können, damit ich die kommerziellen Konditionen verwalten kann — ausschliesslich für interne Rollen sichtbar/bearbeitbar, nie für die Partnerfirma selbst.
 
 ## Out of Scope
 - **Nachrichten, Dokumente, volles Dashboard fürs Partnerportal** (PROJ-17-/PROJ-16-/PROJ-19-artige Funktionen) — bewusst kleinerer Scope für diese Spec, spätere eigenständige Erweiterungen; die PROJ-19-Platzhalterseite bleibt bis dahin bestehen
@@ -32,6 +33,7 @@
 - **Automatisches Zurückziehen von Vorschlägen bei Widerruf der Partner-Freigabe einer Anfrage** — bleibt eine manuelle interne Aktion
 - **Mehrstufige/differenzierte Partnerfirmen-Berechtigungen** (z.B. verschiedene Rollen innerhalb einer Partnerfirma) — alle `partner_company`-Nutzer einer Firma haben dieselben Rechte, analog zum bestehenden Gemeinde-Modell
 - **Partnerfirmen-Onboarding-Self-Service-Formular** — Firma und erstes Konto werden vollständig intern angelegt
+- **Bearbeitung der eigenen Firmendaten durch die Partnerfirma selbst** (Name/Adresse/Kontakt) — nicht Teil dieser Spec, nur internes Personal bearbeitet Partnerfirmen-Stammdaten (inkl. Provision); eine Partnerfirma hat höchstens lesenden Zugriff auf die eigenen, unbedenklichen Stammdaten, siehe Provision-Abschnitt
 
 ## Acceptance Criteria
 
@@ -62,6 +64,10 @@
 - [ ] Angenommen internes Personal genehmigt oder lehnt einen Partner-Vorschlag ab, dann wird die vorschlagende Partnerfirma benachrichtigt
 - [ ] Angenommen die Gemeinde nimmt einen ursprünglich von einer Partnerfirma stammenden Vorschlag an oder lehnt ihn ab, dann wird die Partnerfirma zusätzlich zur bestehenden internen Benachrichtigung ebenfalls benachrichtigt
 - [ ] Angenommen ein `partner_company`-Nutzer versucht, einen Vorschlag für eine nicht freigegebene oder für eine fremde (nicht existierende sichtbare) Anfrage zu erstellen, dann wird das verweigert
+
+### Provision (nur intern)
+- [ ] Angenommen internes Personal öffnet eine Partnerfirma, dann kann es die Provision (`commission_rate`) einsehen und bearbeiten
+- [ ] Angenommen ein `partner_company`-Nutzer ruft seine eigenen Firmendaten ab (z.B. für eine zukünftige Firmenprofil-Ansicht), dann enthält die Antwort ausschliesslich Name/Adresse/Kontaktdaten — die Provision ist nicht Teil der Antwort, unabhängig davon, wie die Abfrage gestellt wird (auch nicht über einen direkten API-Aufruf gegen die Partnerfirmen-Tabelle)
 
 ## Edge Cases
 - Anfrage wird nach der Freigabe für Partner wieder zurückgezogen → verschwindet aus der Partneransicht; bereits eingereichte Vorschläge dazu bleiben unverändert im bestehenden Freigabe-Prozess
@@ -97,7 +103,9 @@ _Keine offenen Fragen._
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
-| Neue Tabelle `partner_companies` (Name, Adresse, Kontaktperson, Kontakt-E-Mail, Kontakt-Telefon), Spaltenaufbau identisch zu `municipalities` | Bewährtes, bereits produktiv genutztes Muster 1:1 wiederverwendet, keine neue Modellierungsentscheidung nötig | 2026-08-04 |
+| Neue Tabelle `partner_companies` (Name, Adresse, Kontaktperson, Kontakt-E-Mail, Kontakt-Telefon, `commission_rate numeric(5,2)`), Spaltenaufbau sonst identisch zu `municipalities` | Bewährtes, bereits produktiv genutztes Muster 1:1 wiederverwendet, keine neue Modellierungsentscheidung nötig; `commission_rate` als zusätzliches, aus der ursprünglichen PartnerCompany-Anforderung stammendes Feld | 2026-08-04 |
+| **`partner_companies_select`: ausschliesslich `is_internal_role()`, kein `partner_company`-Zweig auf der Basistabelle** | Postgres-RLS kann nur ganze Zeilen sperren, keine einzelnen Spalten innerhalb einer für eine Rolle erlaubten Zeile — ein `partner_company`-Zweig würde zwangsläufig auch `commission_rate` mit freigeben, egal was die eigene App-Oberfläche abfragt (ein direkter API-Aufruf könnte die Spalte trotzdem anfordern). Vollständiger Ausschluss vom direkten Tabellenzugriff ist der einzige Weg, die Vorgabe "nur internes Personal darf die Provision sehen" auch gegen direkte API-Aufrufe durchzusetzen, nicht nur gegen die eigene Oberfläche | 2026-08-04 |
+| Neue SECURITY-DEFINER-Funktion `get_own_partner_company()` liefert für den Aufrufer ausschliesslich `id, name, address, contact_name, contact_email, contact_phone` der eigenen Partnerfirma — `commission_rate` taucht im Rückgabetyp der Funktion gar nicht erst auf | Ermöglicht einer Partnerfirma trotzdem den lesenden Zugriff auf ihre eigenen, unbedenklichen Stammdaten (z.B. für eine künftige Firmenprofil-Ansicht), ohne die Basistabelle direkt freizugeben — die Sperre ist damit strukturell (die Spalte existiert im Funktionsergebnis nicht), nicht nur eine Konvention in der Anwendungsschicht | 2026-08-04 |
 | `profiles.partner_company_id` (nullable, FK auf `partner_companies`), analog zu `profiles.municipality_id` | Gleiches Verknüpfungsmuster wie bei Gemeinde-Nutzern; ein Profil hat höchstens eine der beiden Verknüpfungen, nie beide | 2026-08-04 |
 | `candidates.partner_company_id` (nullable, FK auf `partner_companies`), gesetzt genau dann, wenn `source_type = 'partner'` | Nutzt das bereits vorhandene, bisher ungenutzte `source_type`-Feld aus PROJ-1 wie ursprünglich vorgesehen; Dafinex-eigene Kandidaten (`source_type = 'dafinex'`) bleiben mit `partner_company_id = null` unverändert | 2026-08-04 |
 | `personnel_requests.visible_to_partners boolean not null default false` | Einfachste Modellierung für „ist diese Anfrage extern sichtbar" — additive Spalte, keine Migration bestehender Daten nötig (Standard `false` erhält das bisherige Verhalten für alle existierenden Anfragen) | 2026-08-04 |
@@ -120,8 +128,9 @@ _Keine offenen Fragen._
 ```
 Partnerfirmen-Verwaltung (neu, intern: /internal/partners)
 ├── Liste aller Partnerfirmen (analog /internal/municipalities)
-│     └── "Neue Partnerfirma"-Dialog (Name/Kontaktdaten + erstes Nutzerkonto)
+│     └── "Neue Partnerfirma"-Dialog (Name/Kontaktdaten + Provision + erstes Nutzerkonto)
 └── Partnerfirma-Detailseite
+      ├── Stammdaten inkl. Provision (nur für internes Personal sichtbar/bearbeitbar)
       └── Verknüpfte Nutzerkonten (analog Gemeinde-Detailseite)
 
 Bestehende Anfrage-Detailseite (/internal/requests/[id])
@@ -146,6 +155,7 @@ Partnerportal (erweitert die PROJ-19-Platzhalterseite um zwei neue Bereiche)
 
 **Neue Partnerfirma** (eine neue Tabelle, exakt nach dem bestehenden Gemeinde-Muster):
 - Name, Adresse, Kontaktperson, Kontakt-E-Mail, Kontakt-Telefon
+- Provision (`commission_rate`) — ausschliesslich für internes Personal sichtbar und bearbeitbar, strukturell unerreichbar für die Partnerfirma selbst (auch nicht über einen direkten Datenbankzugriff, nicht nur in der Oberfläche versteckt)
 
 **Bestehendes Profil** bekommt eine neue, optionale Verknüpfung zur eigenen Partnerfirma — analog zur bereits bestehenden Gemeinde-Verknüpfung, nur für `partner_company`-Nutzer gesetzt.
 
