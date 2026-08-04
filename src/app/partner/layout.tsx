@@ -3,7 +3,11 @@ import { getCurrentProfile, getPortalPathForProfile } from "@/lib/auth/get-curre
 import { PortalShell, type PortalNavItem } from "@/components/portal/portal-shell"
 import { getRecentNotifications } from "@/lib/notifications/get-recent-notifications"
 
-const navItems: PortalNavItem[] = [{ label: "Dashboard", href: "/partner/dashboard" }]
+const navItems: PortalNavItem[] = [
+  { label: "Dashboard", href: "/partner/dashboard" },
+  { label: "Kandidaten", href: "/partner/candidates" },
+  { label: "Anfragen", href: "/partner/requests" },
+]
 
 export default async function PartnerLayout({ children }: { children: React.ReactNode }) {
   const profile = await getCurrentProfile()

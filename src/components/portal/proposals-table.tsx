@@ -33,6 +33,7 @@ export interface ProposalRow {
   candidateId: string
   candidateName: string
   proposedByName: string
+  partnerCompanyName: string | null
   assignmentId: string | null
 }
 
@@ -131,7 +132,14 @@ export function ProposalsTable({ proposals, defaultStartDate, defaultEndDate }: 
               <TableCell>
                 <Badge variant={statusVariant[p.status]}>{statusLabel[p.status]}</Badge>
               </TableCell>
-              <TableCell>{p.proposedByName}</TableCell>
+              <TableCell>
+                {p.proposedByName}
+                {p.partnerCompanyName && (
+                  <Badge variant="outline" className="ml-2">
+                    von Partnerfirma {p.partnerCompanyName}
+                  </Badge>
+                )}
+              </TableCell>
               <TableCell>{new Date(p.createdDate).toLocaleDateString("de-CH")}</TableCell>
               <TableCell className="text-right space-x-2">
                 <Button

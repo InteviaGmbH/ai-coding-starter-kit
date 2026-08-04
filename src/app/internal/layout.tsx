@@ -6,6 +6,7 @@ import { getRecentNotifications } from "@/lib/notifications/get-recent-notificat
 const navItems: PortalNavItem[] = [
   { label: "Dashboard", href: "/internal/dashboard" },
   { label: "Gemeinden", href: "/internal/municipalities" },
+  { label: "Partnerfirmen", href: "/internal/partners" },
   { label: "Kandidaten", href: "/internal/candidates" },
   { label: "Anfragen", href: "/internal/requests" },
   { label: "Einsätze", href: "/internal/assignments" },

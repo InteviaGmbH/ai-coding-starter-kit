@@ -18,6 +18,8 @@ export interface ActivityLogRow {
 const ACTIVITY_DESCRIPTIONS: Record<string, Record<string, string>> = {
   personnel_request: {
     reviewed: "Anfrage geprüft",
+    visible_to_partners_enabled: "Für Partnerfirmen freigegeben",
+    visible_to_partners_disabled: "Partnerfirmen-Freigabe zurückgezogen",
   },
   candidate_proposal: {
     proposed: "Kandidat vorgeschlagen",

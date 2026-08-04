@@ -38,11 +38,32 @@ export default async function RequestProposalsPage({
 
   const { data: proposers } =
     proposerIds.length > 0
-      ? await supabase.from("profiles").select("id, full_name, email").in("id", proposerIds)
+      ? await supabase
+          .from("profiles")
+          .select("id, full_name, email, role, partner_company_id")
+          .in("id", proposerIds)
       : { data: [] }
 
   const proposerNameById = new Map(
     (proposers ?? []).map((p) => [p.id, p.full_name ?? p.email]),
+  )
+
+  const partnerCompanyIds = Array.from(
+    new Set(
+      (proposers ?? [])
+        .filter((p) => p.role === "partner_company" && p.partner_company_id)
+        .map((p) => p.partner_company_id as string),
+    ),
+  )
+
+  const { data: partnerCompanies } =
+    partnerCompanyIds.length > 0
+      ? await supabase.from("partner_companies").select("id, name").in("id", partnerCompanyIds)
+      : { data: [] }
+
+  const partnerCompanyNameById = new Map((partnerCompanies ?? []).map((c) => [c.id, c.name]))
+  const proposerPartnerCompanyId = new Map(
+    (proposers ?? []).map((p) => [p.id, p.role === "partner_company" ? p.partner_company_id : null]),
   )
 
   const proposalIds = (proposals ?? []).map((p) => p.id)
@@ -62,6 +83,9 @@ export default async function RequestProposalsPage({
       candidateId: candidate?.id ?? "",
       candidateName: candidate ? `${candidate.first_name} ${candidate.last_name}` : "Unbekannt",
       proposedByName: p.proposed_by_id ? (proposerNameById.get(p.proposed_by_id) ?? "—") : "—",
+      partnerCompanyName: p.proposed_by_id
+        ? (partnerCompanyNameById.get(proposerPartnerCompanyId.get(p.proposed_by_id) ?? "") ?? null)
+        : null,
       assignmentId: assignmentIdByProposalId.get(p.id) ?? null,
     }
   })

@@ -1,8 +1,8 @@
 # PROJ-13: Partnerportal + Partnerfirmen-Kandidatenvorschläge
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-08-04
-**Last Updated:** 2026-08-04 (Provision/`commission_rate` ergänzt — nur intern sichtbar/bearbeitbar, strukturell (nicht nur UI-seitig) gegen Partnerfirmen-Zugriff abgesichert)
+**Last Updated:** 2026-08-04 (Backend + Frontend implementiert, bereit für /qa)
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — `user_role` enthält bereits `partner_company`, `candidate_source_type` bereits `partner` (bisher unbenutzt, für genau diese Spec vorgesehen)
@@ -177,6 +177,26 @@ Partnerportal (erweitert die PROJ-19-Platzhalterseite um zwei neue Bereiche)
 
 ### D) Dependencies (packages to install)
 - Keine neuen Pakete.
+
+## Implementation Notes
+
+### Datenbank
+- Migration `20260804090000_partner_companies.sql`: neue Tabelle `partner_companies` (Spaltenaufbau wie `municipalities`, plus `commission_rate numeric(5,2)`), neue Spalten `profiles.partner_company_id`, `candidates.partner_company_id`, `personnel_requests.visible_to_partners`.
+- `partner_companies` hat **keine** SELECT-Policy für `partner_company` — nur `is_internal_role()`. Neue SECURITY-DEFINER-Funktion `get_own_partner_company()` liefert einer Partnerfirma ausschliesslich `id, name, address, contact_name, contact_email, contact_phone`; `commission_rate` ist im Rückgabetyp gar nicht vorhanden. Setzt die Provision-Sperre strukturell durch, nicht nur oberflächenseitig (siehe Decision Log).
+- Neue Policies: `candidates_select_own_partner`/`candidates_insert_partner`/`candidates_update_own_partner`, `personnel_requests_select_partner`, `candidate_proposals_select_partner`/`candidate_proposals_insert_partner`, `activity_log_insert_partner_proposal` (analog zu `activity_log_insert_municipality_proposal_decision` aus PROJ-1).
+- `profiles_update_own_limited` erweitert um `partner_company_id is not distinct from current_partner_company_id()`, `enforce_candidate_self_update_columns` (PROJ-20) erweitert um `partner_company_id` — beides schliesst sonst durch diese Migration neu entstehende Selbstzuordnungs-Lücken.
+- Neue SECURITY-DEFINER-Funktion `current_partner_company_id()`, analog zu `current_municipality_id()`/`current_candidate_id()`.
+- Partnerfirmen-Konto-Erstellung nutzt `supabase.auth.admin.inviteUserByEmail()` (Service-Role-Client) **ohne** `role` in den Metadaten — `handle_new_user()` (PROJ-1, unverändert) legt dadurch ein Profil mit `role: candidate`, `account_status: pending` an; die anschliessende Rollen-/Zuordnungs-Elevation (`role → partner_company`, `partner_company_id`, `account_status → active`) läuft über dieselbe `profiles_update_by_dafinex_admin`-Policy, die auch `approveMunicipalityAccount` nutzt. Bei Fehlschlag der Elevation wird der eingeladene Auth-User wieder gelöscht (kein dauerhaft blockierender Karteileichen-Account); bei Fehlschlag der Einladung wird der zuvor angelegte `partner_companies`-Datensatz zurückgerollt.
+
+### Anwendungscode
+- Neue Server Actions: `src/app/internal/partners/actions.ts` (`createPartnerCompany`/`updatePartnerCompany`/`deletePartnerCompany`, Kontoerstellung nur `dafinex_admin`/`super_admin`, analog zu `approveMunicipalityAccount`), `src/app/partner/candidates/actions.ts`, `src/app/partner/proposals/actions.ts` (`proposeCandidateAsPartner`).
+- `reviewProposal` (`src/app/internal/requests/[id]/proposals/actions.ts`) erweitert: benachrichtigt jetzt zusätzlich die vorschlagende Partnerfirma bei Freigabe **und** Ablehnung (vorher nur die Gemeinde bei Freigabe).
+- `src/app/internal/requests/actions.ts` erweitert um `setRequestVisibleToPartners`.
+- `getCurrentProfile()` (`src/lib/auth/get-current-profile.ts`) liefert jetzt zusätzlich `partnerCompanyId`.
+- Neue interne Seiten: `/internal/partners` (Liste), `/internal/partners/[id]` (Detail inkl. Provision + verknüpfte Konten) — analog zu `/internal/municipalities`; Nav-Eintrag „Partnerfirmen" ergänzt.
+- `/internal/requests/[id]` erweitert um einen Schalter „Für Partnerfirmen freigeben"; `/internal/requests/[id]/proposals` zeigt bei Partnervorschlägen zusätzlich ein Badge „von Partnerfirma X" (separate Lookup-Query auf `partner_companies`, kein implizites PostgREST-Embed über `profiles`, siehe `.claude/rules/backend.md`).
+- Neue Partnerportal-Seiten: `/partner/candidates` (eigene Kandidatenverwaltung), `/partner/requests` (freigegebene Anfragen ohne Gemeinde-Name + „Kandidat vorschlagen"-Dialog); Nav-Einträge in `src/app/partner/layout.tsx` ergänzt (Dashboard bleibt der PROJ-19-Platzhalter).
+- Kein neues Messaging/Dokumente/Dashboard für Partnerfirmen (Out of Scope, siehe Spec).
 
 ## QA Test Results
 _To be added by /qa_

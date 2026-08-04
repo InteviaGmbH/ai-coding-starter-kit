@@ -130,7 +130,7 @@ export async function reviewProposal(
 
   const { data: proposal } = await supabase
     .from("candidate_proposals")
-    .select("id, status, request_id")
+    .select("id, status, request_id, proposed_by_id")
     .eq("id", proposalId)
     .single()
 
@@ -158,24 +158,45 @@ export async function reviewProposal(
     action: decision,
   })
 
-  if (decision === "approved") {
-    const { data: request } = await supabase
-      .from("personnel_requests")
-      .select("title, created_by_id")
-      .eq("id", proposal.request_id)
-      .single()
+  const { data: request } = await supabase
+    .from("personnel_requests")
+    .select("title, created_by_id")
+    .eq("id", proposal.request_id)
+    .single()
 
-    if (request?.created_by_id) {
+  if (decision === "approved" && request?.created_by_id) {
+    await supabase.from("notifications").insert({
+      recipient_id: request.created_by_id,
+      type: "proposal_approved",
+      message: `Ein neuer Kandidatenvorschlag für „${request.title}" ist verfügbar.`,
+    })
+  }
+
+  // PROJ-13: a partner-sourced proposal's own proposer (unlike an internal
+  // one) has no other way to learn about the internal decision — they
+  // don't see the request/proposals list at all, only their own proposal.
+  if (proposal.proposed_by_id) {
+    const { data: proposerProfile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", proposal.proposed_by_id)
+      .maybeSingle()
+
+    if (proposerProfile?.role === "partner_company") {
       await supabase.from("notifications").insert({
-        recipient_id: request.created_by_id,
-        type: "proposal_approved",
-        message: `Ein neuer Kandidatenvorschlag für „${request.title}" ist verfügbar.`,
+        recipient_id: proposal.proposed_by_id,
+        type: "proposal_decision",
+        message:
+          decision === "approved"
+            ? `Ihr Vorschlag für „${request?.title ?? "eine Anfrage"}" wurde intern freigegeben.`
+            : `Ihr Vorschlag für „${request?.title ?? "eine Anfrage"}" wurde abgelehnt.`,
       })
     }
   }
 
   revalidatePath(`/internal/requests/${proposal.request_id}/proposals`)
   revalidatePath(`/internal/requests/${proposal.request_id}`)
+  revalidatePath("/partner/requests")
   return { success: true }
 }
 

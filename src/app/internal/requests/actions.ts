@@ -73,3 +73,36 @@ export async function markRequestReviewed(id: string): Promise<ActionResult> {
   revalidatePath(`/internal/requests/${id}`)
   return { success: true }
 }
+
+export async function setRequestVisibleToPartners(id: string, visible: boolean): Promise<ActionResult> {
+  const actor = await requireInternalRole()
+  if (!actor) {
+    return { success: false, error: "Keine Berechtigung." }
+  }
+
+  if (!z.string().uuid().safeParse(id).success) {
+    return { success: false, error: "Ungültige Anfrage." }
+  }
+
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from("personnel_requests")
+    .update({ visible_to_partners: visible })
+    .eq("id", id)
+
+  if (error) {
+    return { success: false, error: "Freigabe konnte nicht geändert werden." }
+  }
+
+  await supabase.from("activity_log").insert({
+    actor_id: actor.id,
+    entity_type: "personnel_request",
+    entity_id: id,
+    action: visible ? "visible_to_partners_enabled" : "visible_to_partners_disabled",
+  })
+
+  revalidatePath(`/internal/requests/${id}`)
+  revalidatePath("/partner/requests")
+  return { success: true }
+}

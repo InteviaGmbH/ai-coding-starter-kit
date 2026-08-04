@@ -18,6 +18,7 @@ export interface CurrentProfile {
   accountStatus: AccountStatus
   municipalityId: string | null
   candidateId: string | null
+  partnerCompanyId: string | null
   hiddenDashboardWidgets: string[]
 }
 
@@ -42,7 +43,7 @@ export async function getCurrentProfile(): Promise<CurrentProfile | null> {
   const { data: profile, error } = await supabase
     .from("profiles")
     .select(
-      "id, email, full_name, role, account_status, municipality_id, candidate_id, hidden_dashboard_widgets"
+      "id, email, full_name, role, account_status, municipality_id, candidate_id, partner_company_id, hidden_dashboard_widgets"
     )
     .eq("id", user.id)
     .single()
@@ -59,6 +60,7 @@ export async function getCurrentProfile(): Promise<CurrentProfile | null> {
     accountStatus: profile.account_status,
     municipalityId: profile.municipality_id,
     candidateId: profile.candidate_id,
+    partnerCompanyId: profile.partner_company_id,
     hiddenDashboardWidgets: profile.hidden_dashboard_widgets ?? [],
   }
 }

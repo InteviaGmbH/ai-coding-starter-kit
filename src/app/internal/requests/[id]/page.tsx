@@ -28,7 +28,7 @@ export default async function InternalRequestDetailPage({
   const { data: request, error: requestError } = await supabase
     .from("personnel_requests")
     .select(
-      "id, title, required_skills, region, start_date, end_date, required_workload_percent, status, municipality_id"
+      "id, title, required_skills, region, start_date, end_date, required_workload_percent, status, municipality_id, visible_to_partners"
     )
     .eq("id", id)
     .single()
@@ -73,7 +73,11 @@ export default async function InternalRequestDetailPage({
               Vorschläge ({proposalCount ?? 0})
             </Link>
           </Button>
-          <InternalRequestDetailActions requestId={request.id} status={request.status} />
+          <InternalRequestDetailActions
+            requestId={request.id}
+            status={request.status}
+            visibleToPartners={request.visible_to_partners}
+          />
         </div>
       </div>
 
