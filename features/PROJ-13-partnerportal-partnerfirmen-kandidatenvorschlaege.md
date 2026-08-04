@@ -1,8 +1,8 @@
 # PROJ-13: Partnerportal + Partnerfirmen-Kandidatenvorschläge
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-08-04
-**Last Updated:** 2026-08-04
+**Last Updated:** 2026-08-04 (Tech Design ergänzt — siehe Abschnitt "Tech Design (Solution Architect)")
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — `user_role` enthält bereits `partner_company`, `candidate_source_type` bereits `partner` (bisher unbenutzt, für genau diese Spec vorgesehen)
@@ -97,12 +97,72 @@ _Keine offenen Fragen._
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Neue Tabelle `partner_companies` (Name, Adresse, Kontaktperson, Kontakt-E-Mail, Kontakt-Telefon), Spaltenaufbau identisch zu `municipalities` | Bewährtes, bereits produktiv genutztes Muster 1:1 wiederverwendet, keine neue Modellierungsentscheidung nötig | 2026-08-04 |
+| `profiles.partner_company_id` (nullable, FK auf `partner_companies`), analog zu `profiles.municipality_id` | Gleiches Verknüpfungsmuster wie bei Gemeinde-Nutzern; ein Profil hat höchstens eine der beiden Verknüpfungen, nie beide | 2026-08-04 |
+| `candidates.partner_company_id` (nullable, FK auf `partner_companies`), gesetzt genau dann, wenn `source_type = 'partner'` | Nutzt das bereits vorhandene, bisher ungenutzte `source_type`-Feld aus PROJ-1 wie ursprünglich vorgesehen; Dafinex-eigene Kandidaten (`source_type = 'dafinex'`) bleiben mit `partner_company_id = null` unverändert | 2026-08-04 |
+| `personnel_requests.visible_to_partners boolean not null default false` | Einfachste Modellierung für „ist diese Anfrage extern sichtbar" — additive Spalte, keine Migration bestehender Daten nötig (Standard `false` erhält das bisherige Verhalten für alle existierenden Anfragen) | 2026-08-04 |
+| Neue RLS-Policies für `partner_companies`/`candidates`/`personnel_requests`/`candidate_proposals` folgen exakt der Struktur der bestehenden Gemeinde-Policies (`is_internal_role() or <eigene-Zuordnung>`), keine neuen Hilfsfunktionen nötig ausser einer `current_partner_company_id()`-SECURITY-DEFINER-Funktion analog zu `current_municipality_id()` | Konsistenz mit dem bereits etablierten RLS-Muster; eine neue, einfache SECURITY-DEFINER-Funktion nach exakt demselben Vorbild wie die drei bereits bestehenden (`current_municipality_id`, `current_candidate_id`, `current_role`) | 2026-08-04 |
+| Partnerfirmen-Konto-Erstellung nutzt denselben internen „Profil + Rolle direkt anlegen"-Servercode-Pfad, der für interne Gemeinde-Konten bereits existiert (kein `auth.signUp`, keine E-Mail-Bestätigung) | Konto entsteht nie über die abgesicherte Selbstregistrierung; internes Personal legt Profil und Zuordnung direkt und sofort aktiv an, exakt wie bereits für andere intern erstellte Konten etabliert | 2026-08-04 |
+| Partnerfirmen-Ansicht der freigegebenen Anfragen fragt `personnel_requests` ohne den `municipality`-Join ab (bzw. blendet ihn in der Antwort explizit aus) | Setzt die Produktentscheidung „kein Gemeinde-Name sichtbar" technisch um — die Daten sind serverseitig nie Teil der an das Partnerportal ausgelieferten Antwort, nicht nur clientseitig ausgeblendet | 2026-08-04 |
+| Benachrichtigung an die Partnerfirma bei Freigabe-Entscheidung (intern) und bei Gemeinde-Entscheidung nutzt die bestehende `notifications`-Infrastruktur (PROJ-11/17/18), `recipient_id` zeigt auf den vorschlagenden Partnerfirmen-Nutzer (bereits über `proposed_by_id` bekannt) | Keine neue Benachrichtigungs-Mechanik nötig, reine Wiederverwendung bereits vorhandener Trigger-Punkte in `reviewProposal`/`acceptProposal`/`declineProposal` | 2026-08-04 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### A) Component Structure
+
+```
+Partnerfirmen-Verwaltung (neu, intern: /internal/partners)
+├── Liste aller Partnerfirmen (analog /internal/municipalities)
+│     └── "Neue Partnerfirma"-Dialog (Name/Kontaktdaten + erstes Nutzerkonto)
+└── Partnerfirma-Detailseite
+      └── Verknüpfte Nutzerkonten (analog Gemeinde-Detailseite)
+
+Bestehende Anfrage-Detailseite (/internal/requests/[id])
+└── Neuer Schalter „Für Partnerfirmen freigeben" (An/Aus)
+
+Bestehende interne Vorschlagsliste (/internal/requests/[id]/proposals)
+└── zeigt Partnervorschläge gleichberechtigt neben internen Vorschlägen,
+      mit Kennzeichnung „von Partnerfirma X"
+
+Partnerportal (erweitert die PROJ-19-Platzhalterseite um zwei neue Bereiche)
+├── Dashboard (bleibt vorerst der bestehende Platzhalter aus PROJ-19)
+├── Kandidaten (neu, analog /internal/candidates, aber auf die eigene Firma beschränkt)
+│     ├── Liste eigener Kandidaten
+│     └── „Neuer Kandidat"-Dialog (Vorname/Nachname/Fähigkeiten/Region/Verfügbarkeit)
+└── Anfragen (neu)
+      ├── Liste freigegebener Anfragen (Titel/Fähigkeiten/Region/Zeitraum/Pensum,
+      │     ohne Gemeinde-Name)
+      └── „Kandidat vorschlagen"-Dialog pro Anfrage (Auswahl aus eigenen Kandidaten)
+```
+
+### B) Data Model (plain language)
+
+**Neue Partnerfirma** (eine neue Tabelle, exakt nach dem bestehenden Gemeinde-Muster):
+- Name, Adresse, Kontaktperson, Kontakt-E-Mail, Kontakt-Telefon
+
+**Bestehendes Profil** bekommt eine neue, optionale Verknüpfung zur eigenen Partnerfirma — analog zur bereits bestehenden Gemeinde-Verknüpfung, nur für `partner_company`-Nutzer gesetzt.
+
+**Bestehender Kandidat**: das bereits vorhandene, bisher ungenutzte Feld `source_type: partner` kommt jetzt tatsächlich zum Einsatz; dazu eine neue, optionale Verknüpfung zur besitzenden Partnerfirma (nur gesetzt, wenn `source_type = partner`).
+
+**Bestehende Personalanfrage**: ein neues Feld „für Partnerfirmen freigegeben?" (ja/nein, Standard: nein).
+
+**Bestehender Kandidatenvorschlag**: keine neuen Felder nötig — die bereits vorhandene „wer hat vorgeschlagen"-Verknüpfung zeigt jetzt auch auf Partnerfirmen-Nutzer, der komplette bestehende Status-Ablauf (PROJ-7/8) bleibt unverändert.
+
+### C) Tech Decisions (justified for PM)
+
+1. **Partnerfirma als eigene Tabelle, exaktes Abbild des bereits bewährten Gemeinde-Musters** — kein neues Konzept, volle Wiederverwendung von etwas, das im Projekt schon funktioniert.
+2. **Kandidat bekommt nur eine neue, optionale Verknüpfung zur Partnerfirma** — Dafinex-eigene Kandidaten bleiben davon komplett unberührt, keine Änderung an ihrem bestehenden Verhalten.
+3. **Ein einfacher Ja/Nein-Freigabe-Schalter direkt auf der Anfrage**, keine eigene Freigabe-Tabelle — reicht vollständig aus, um zu steuern, was extern sichtbar ist.
+4. **Vollständige Wiederverwendung des bestehenden Vorschlags-/Freigabe-Ablaufs (PROJ-7/8) ohne jede Schema-Änderung** — ein Partnervorschlag ist technisch identisch zu einem internen Vorschlag, nur die Rolle des vorschlagenden Nutzers unterscheidet sich. Die komplette bestehende Qualitätskontrolle (interne Prüfung vor Gemeinde-Sichtbarkeit) greift automatisch, ohne Zusatzaufwand.
+5. **Zugriffsbeschränkung nach demselben Muster wie bei Gemeinden**: eine Partnerfirma sieht ausschliesslich ihre eigenen Kandidaten und ausschliesslich freigegebene Anfragen — dieselbe Art Datenbank-Regel, die für Gemeinden bereits zuverlässig funktioniert.
+6. **Die freigegebenen Anfragen werden für Partnerfirmen bewusst ohne die Gemeinde-Verknüpfung abgefragt** — die Ansicht zeigt nur die Kriterien-Felder, nie den Gemeinde-Namen.
+7. **Kein neuer Registrierungsweg**: Partnerfirmen-Konten entstehen über denselben internen „Konto direkt anlegen"-Mechanismus, der für Gemeinden schon existiert — die bestehende, bewusst eingeschränkte Selbstregistrierung bleibt komplett unangetastet.
+
+### D) Dependencies (packages to install)
+- Keine neuen Pakete.
 
 ## QA Test Results
 _To be added by /qa_

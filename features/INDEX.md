@@ -27,7 +27,7 @@
 | PROJ-10 | Einfache Vertragsgenerierung | Deployed | [PROJ-10](PROJ-10-einfache-vertragsgenerierung.md) | 2026-07-25 |
 | PROJ-11 | Kern-Benachrichtigungen | Deployed | [PROJ-11](PROJ-11-kern-benachrichtigungen.md) | 2026-07-25 |
 | PROJ-12 | Aktivitätenprotokoll (Basis) | Deployed | [PROJ-12](PROJ-12-aktivitaetenprotokoll-basis.md) | 2026-07-25 |
-| PROJ-13 | Partnerportal + Partnerfirmen-Kandidatenvorschläge | Planned | [PROJ-13](PROJ-13-partnerportal-partnerfirmen-kandidatenvorschlaege.md) | 2026-07-25 |
+| PROJ-13 | Partnerportal + Partnerfirmen-Kandidatenvorschläge | Architected | [PROJ-13](PROJ-13-partnerportal-partnerfirmen-kandidatenvorschlaege.md) | 2026-07-25 |
 | PROJ-14 | Volle Matching-Score-Formel mit Gewichtungen | Approved | [PROJ-14](PROJ-14-volle-matching-score-formel.md) | 2026-07-25 |
 | PROJ-15 | Digitale Multi-Party-Signaturen | Approved | [PROJ-15](PROJ-15-digitale-multi-party-signaturen.md) | 2026-07-25 |
 | PROJ-16 | Vollständiges Dokumentenmanagement | Approved | [PROJ-16](PROJ-16-vollstaendiges-dokumentenmanagement.md) | 2026-07-25 |
