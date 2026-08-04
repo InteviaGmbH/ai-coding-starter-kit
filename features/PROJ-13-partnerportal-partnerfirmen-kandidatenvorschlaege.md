@@ -2,7 +2,7 @@
 
 ## Status: Approved
 **Created:** 2026-08-04
-**Last Updated:** 2026-08-04 (QA abgeschlossen: 19/19 AC erfüllt, 0 Critical/High, 1 Medium + 2 Low offen)
+**Last Updated:** 2026-08-04 (QA abgeschlossen: 19/19 AC erfüllt, 0 Critical/High; BUG-13-1/-2/-3 behoben)
 
 ## Dependencies
 - Requires: PROJ-1 (Supabase Infrastructure Setup) — `user_role` enthält bereits `partner_company`, `candidate_source_type` bereits `partner` (bisher unbenutzt, für genau diese Spec vorgesehen)
@@ -263,14 +263,23 @@ Wie bereits bei PROJ-14/15/16/17/18/19 etabliert: kein Browser-Tool und keine `.
 | BUG-13-3 | Low | **Layout-Unstimmigkeit auf der Anfrage-Detailseite:** Der neue „Für Partnerfirmen freigeben"-Schalter (`InternalRequestDetailActions`) rendert jetzt einen mehrzeiligen `space-y-2`-Block (Schalter-Zeile + Button-Zeile), der in der bestehenden Kopfzeile direkt neben den einzeiligen Buttons „Kandidaten suchen"/„Vorschläge (N)" steht — dadurch wirkt die Kopfzeile uneinheitlich hoch/breit, rein optisch, keine Funktionseinschränkung. | `src/app/internal/requests/[id]/page.tsx` (Header-`flex`-Zeile), `src/components/portal/internal-request-detail-actions.tsx` |
 
 **Kritische Bugs: 0 — Hohe Bugs: 0**
-**Medium: 1, Low: 2**
+**Medium: 1 (behoben), Low: 2 (behoben)**
+
+### Fixes (nach Nutzer-Freigabe)
+Reihenfolge wie vom Nutzer vorgegeben: zuerst BUG-13-1 (Demo-relevant), danach BUG-13-2/-3.
+
+- **BUG-13-1 (Medium) — behoben:** `/internal/candidates` und `/internal/candidates/[id]` leiten die Herkunftsanzeige jetzt aus `source_type`/`partner_company_id` ab statt nur aus `hasAccount`/`profile_id`. Ein Partner-Kandidat zeigt neu „Partnerfirma: {Name}" (als eigenes, optisch abgehobenes Badge in der Liste) statt fälschlich „Intern erfasst"; Dafinex-eigene und selbst registrierte Kandidaten unverändert. Firmenname wird über eine separate Lookup-Query auf `partner_companies` geladen (kein implizites PostgREST-Embed, siehe `.claude/rules/backend.md`).
+- **BUG-13-2 (Low) — behoben:** `commission_rate` wird jetzt an beiden Lesestellen (`/internal/partners`, `/internal/partners/[id]`) explizit mit `Number(...)` aus dem von PostgREST als String zurückgegebenen `numeric(5,2)`-Wert normalisiert, bevor es die bereits als `number | null` typisierten Komponenten erreicht — „10" wird wieder als „10%" statt „10.00%" angezeigt, TypeScript-Typ und Laufzeitwert stimmen jetzt überein.
+- **BUG-13-3 (Low) — behoben:** Der „Für Partnerfirmen freigeben"-Schalter wurde aus `InternalRequestDetailActions` in eine eigene neue Komponente (`RequestPartnerVisibilityToggle`) ausgelagert und auf der Anfrage-Detailseite als eigene Zeile unterhalb der Kopfzeile platziert, statt in denselben Button-Flex-Container gequetscht zu sein. `InternalRequestDetailActions` zeigt wieder nur den ursprünglichen „Als geprüft markieren"-Button, die Kopfzeile hat wieder eine einheitliche Höhe.
+
+**Erneute Verifikation nach den Fixes:** `npx vitest run` → 193/193 grün (keine Testanpassung nötig, alle drei Fixes betreffen ausschliesslich Anzeige-/Layout-Code ohne eigene Vitest-Abdeckung); `npx eslint` auf allen geänderten Dateien → keine neuen Fehler; `npm run build` → erfolgreich, alle Routen kompilieren.
 
 ### Summary
 - **Acceptance Criteria:** 19/19 erfüllt
-- **Bugs Found:** 3 total (0 critical, 0 high, 1 medium, 2 low)
+- **Bugs Found:** 3 total (0 critical, 0 high, 1 medium, 2 low) — **alle 3 behoben**
 - **Security:** Pass — keine Lücken gefunden, insbesondere die vom Nutzer explizit geforderte strukturelle `commission_rate`-Sperre hält gegen direkten Tabellenzugriff
-- **Production Ready:** YES (keine Critical/High-Bugs)
-- **Recommendation:** Deploy möglich; BUG-13-1 vor dem Piloten beheben empfohlen (echte Verwirrung für internes Personal), BUG-13-2/-3 können bei Gelegenheit mit erledigt werden
+- **Production Ready:** YES
+- **Recommendation:** Deploy möglich
 
 ## Deployment
 _To be added by /deploy_

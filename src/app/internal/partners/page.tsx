@@ -30,7 +30,10 @@ export default async function PartnersPage() {
         contactName: c.contact_name,
         contactEmail: c.contact_email,
         contactPhone: c.contact_phone,
-        commissionRate: c.commission_rate,
+        // numeric(5,2) comes back from PostgREST as a string, not a number
+        // (BUG-13-2) — normalize at the read boundary so downstream code can
+        // rely on the `number | null` type it already declares.
+        commissionRate: c.commission_rate == null ? null : Number(c.commission_rate),
         activeAccountCount: count ?? 0,
       }
     })

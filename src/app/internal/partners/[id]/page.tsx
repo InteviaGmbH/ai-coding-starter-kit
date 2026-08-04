@@ -31,6 +31,11 @@ export default async function PartnerCompanyDetailPage({
     notFound()
   }
 
+  // numeric(5,2) comes back from PostgREST as a string, not a number
+  // (BUG-13-2) — normalize at the read boundary so downstream code can rely
+  // on the `number | null` type it already declares.
+  const commissionRate = company.commission_rate == null ? null : Number(company.commission_rate)
+
   const { data: accounts } = await supabase
     .from("profiles")
     .select("id, full_name, email, account_status")
@@ -54,7 +59,7 @@ export default async function PartnerCompanyDetailPage({
             contactName: company.contact_name,
             contactEmail: company.contact_email,
             contactPhone: company.contact_phone,
-            commissionRate: company.commission_rate,
+            commissionRate,
           }}
         />
       </div>
@@ -82,7 +87,7 @@ export default async function PartnerCompanyDetailPage({
           </div>
           <div>
             <p className="text-muted-foreground">Provision</p>
-            <p>{company.commission_rate != null ? `${company.commission_rate}%` : "—"}</p>
+            <p>{commissionRate != null ? `${commissionRate}%` : "—"}</p>
           </div>
           <div>
             <p className="text-muted-foreground">Eigene Kandidaten</p>

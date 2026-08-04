@@ -36,6 +36,17 @@ export interface CandidateRow {
   availability: string | null
   sourceType: "dafinex" | "partner"
   hasAccount: boolean
+  partnerCompanyName: string | null
+}
+
+// Partner-sourced candidates never have their own account (see PROJ-13
+// scope decision), so `hasAccount` alone can't be used to infer "intern
+// erfasst" — that used to wrongly label every partner candidate as
+// internally created (BUG-13-1).
+function originLabel(c: CandidateRow): string {
+  if (c.hasAccount) return "Selbst registriert"
+  if (c.sourceType === "partner") return c.partnerCompanyName ? `Partnerfirma: ${c.partnerCompanyName}` : "Partnerfirma"
+  return "Intern erfasst"
 }
 
 function matches(candidate: CandidateRow, query: string) {
@@ -130,8 +141,8 @@ export function CandidatesTable({ candidates }: { candidates: CandidateRow[] }) 
                   </TableCell>
                   <TableCell>{c.availability ?? "—"}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">
-                      {c.hasAccount ? "Selbst registriert" : "Intern erfasst"}
+                    <Badge variant={c.sourceType === "partner" && !c.hasAccount ? "outline" : "secondary"}>
+                      {originLabel(c)}
                     </Badge>
                   </TableCell>
                   <TableCell className="space-x-2 text-right">

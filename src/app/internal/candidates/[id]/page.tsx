@@ -30,7 +30,7 @@ export default async function CandidateDetailPage({
   const { data: candidate, error: candidateError } = await supabase
     .from("candidates")
     .select(
-      "id, first_name, last_name, phone, skills, region, availability, source_type, profile_id, availability_start, availability_end, max_workload_percent, certifications, languages, experience_years, preferred_regions"
+      "id, first_name, last_name, phone, skills, region, availability, source_type, profile_id, partner_company_id, availability_start, availability_end, max_workload_percent, certifications, languages, experience_years, preferred_regions"
     )
     .eq("id", id)
     .single()
@@ -42,6 +42,23 @@ export default async function CandidateDetailPage({
   if (!candidate) {
     notFound()
   }
+
+  // Separate lookup instead of an implicit PostgREST embed, see
+  // .claude/rules/backend.md (candidates has more than one FK relationship
+  // into play here).
+  const { data: partnerCompany } = candidate.partner_company_id
+    ? await supabase
+        .from("partner_companies")
+        .select("name")
+        .eq("id", candidate.partner_company_id)
+        .single()
+    : { data: null }
+
+  const originLabel = candidate.profile_id
+    ? "Selbst registriert"
+    : candidate.source_type === "partner"
+      ? `Partnerfirma: ${partnerCompany?.name ?? "unbekannt"}`
+      : "Intern erfasst"
 
   const [documents, thread, notes] = await Promise.all([
     loadCandidateDocuments(candidate.id),
@@ -96,7 +113,7 @@ export default async function CandidateDetailPage({
           </div>
           <div>
             <p className="text-muted-foreground">Herkunft</p>
-            <p>{candidate.profile_id ? "Selbst registriert" : "Intern erfasst"}</p>
+            <p>{originLabel}</p>
           </div>
         </CardContent>
       </Card>

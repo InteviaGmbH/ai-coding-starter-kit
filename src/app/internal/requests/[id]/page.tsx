@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { InternalRequestDetailActions } from "@/components/portal/internal-request-detail-actions"
+import { RequestPartnerVisibilityToggle } from "@/components/portal/request-partner-visibility-toggle"
 import { MessageThread } from "@/components/portal/message-thread"
 import { InternalNotesPanel } from "@/components/portal/internal-notes-panel"
 import { loadMessageThread } from "@/lib/messages/loadThread"
@@ -73,12 +74,15 @@ export default async function InternalRequestDetailPage({
               Vorschläge ({proposalCount ?? 0})
             </Link>
           </Button>
-          <InternalRequestDetailActions
-            requestId={request.id}
-            status={request.status}
-            visibleToPartners={request.visible_to_partners}
-          />
+          <InternalRequestDetailActions requestId={request.id} status={request.status} />
         </div>
+      </div>
+
+      <div className="flex justify-end">
+        <RequestPartnerVisibilityToggle
+          requestId={request.id}
+          visibleToPartners={request.visible_to_partners}
+        />
       </div>
 
       <Card>
