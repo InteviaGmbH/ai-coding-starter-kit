@@ -94,6 +94,9 @@ async function importActions(
   }))
   vi.doMock("@/lib/supabase/server", () => ({ createClient: async () => client }))
   vi.doMock("@/lib/supabase/admin", () => ({ createAdminClient: () => admin }))
+  vi.doMock("next/headers", () => ({
+    headers: async () => new Map([["host", "app.dafinex.ch"]]),
+  }))
   return import("./actions")
 }
 
@@ -149,6 +152,7 @@ describe("createPartnerCompany", () => {
     expect(result).toEqual({ success: true, id: COMPANY_ID })
     expect(admin.auth.admin.inviteUserByEmail).toHaveBeenCalledWith("test@firma.ch", {
       data: { full_name: "Max Muster" },
+      redirectTo: "https://app.dafinex.ch/reset-password",
     })
     expect(client.from("profiles").update).toHaveBeenCalledWith(
       expect.objectContaining({

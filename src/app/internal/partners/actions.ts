@@ -2,9 +2,20 @@
 
 import { z } from "zod"
 import { revalidatePath } from "next/cache"
+import { headers } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getCurrentProfile, INTERNAL_ROLES } from "@/lib/auth/get-current-profile"
+
+// Server Actions have no `window.location.origin` — reconstruct it from
+// request headers instead, same source get-request-metadata.ts already
+// reads from for the contract-signature audit trail.
+async function getAppOrigin(): Promise<string> {
+  const headerList = await headers()
+  const host = headerList.get("host")
+  const proto = headerList.get("x-forwarded-proto") ?? (process.env.NODE_ENV === "development" ? "http" : "https")
+  return `${proto}://${host}`
+}
 
 interface ActionResult {
   success: boolean
@@ -94,9 +105,17 @@ export async function createPartnerCompany(input: CreatePartnerCompanyInput): Pr
   // 'active' below right away, there is no pending-approval step for
   // internally created accounts.
   const admin = createAdminClient()
+  const origin = await getAppOrigin()
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(
     parsed.data.firstUserEmail,
-    { data: { full_name: parsed.data.firstUserFullName } }
+    {
+      data: { full_name: parsed.data.firstUserFullName },
+      // Without this, Supabase falls back to the project's default Site
+      // URL and the invite link never reaches a page that can actually set
+      // a password — same redirect target the existing "Passwort
+      // vergessen"-flow already uses (forgot-password-form.tsx).
+      redirectTo: `${origin}/reset-password`,
+    }
   )
 
   if (inviteError || !invited?.user) {
