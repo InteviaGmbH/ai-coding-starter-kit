@@ -34,7 +34,7 @@ export function ForgotPasswordForm() {
     setLoading(true)
     const supabase = createClient()
     await supabase.auth.resetPasswordForEmail(values.email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${window.location.origin}/auth/confirm?next=/reset-password`,
     })
     // Always show the same confirmation, regardless of whether the email
     // exists, so we don't leak which addresses are registered.

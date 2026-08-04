@@ -112,9 +112,11 @@ export async function createPartnerCompany(input: CreatePartnerCompanyInput): Pr
       data: { full_name: parsed.data.firstUserFullName },
       // Without this, Supabase falls back to the project's default Site
       // URL and the invite link never reaches a page that can actually set
-      // a password — same redirect target the existing "Passwort
-      // vergessen"-flow already uses (forgot-password-form.tsx).
-      redirectTo: `${origin}/reset-password`,
+      // a password. Goes through /auth/confirm first (not directly to
+      // /reset-password) so the session code Supabase appends actually
+      // gets exchanged — same redirect target the "Passwort vergessen"-flow
+      // uses (forgot-password-form.tsx).
+      redirectTo: `${origin}/auth/confirm?next=/reset-password`,
     }
   )
 

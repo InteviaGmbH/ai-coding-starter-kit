@@ -152,7 +152,7 @@ describe("createPartnerCompany", () => {
     expect(result).toEqual({ success: true, id: COMPANY_ID })
     expect(admin.auth.admin.inviteUserByEmail).toHaveBeenCalledWith("test@firma.ch", {
       data: { full_name: "Max Muster" },
-      redirectTo: "https://app.dafinex.ch/reset-password",
+      redirectTo: "https://app.dafinex.ch/auth/confirm?next=/reset-password",
     })
     expect(client.from("profiles").update).toHaveBeenCalledWith(
       expect.objectContaining({
